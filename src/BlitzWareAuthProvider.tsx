@@ -55,8 +55,8 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
 }) => {
   const authState = React.useRef(getState() || nanoid());
   const didInitialise = React.useRef(false);
-  const [isAuthenticated, setIsAuthenticated] = React.useState(isTokenValid());
   const [user, setUser] = React.useState<BlitzWareAuthUser | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = React.useState(isTokenValid());
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
