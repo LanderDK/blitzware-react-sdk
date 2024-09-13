@@ -89,13 +89,13 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
       const refresh_token = urlParams.get("refresh_token");
       if (refresh_token) setToken("refresh_token", refresh_token);
     } else {
-      setIsAuthenticated(isTokenValid());
       if (isTokenValid()) {
         fetchUserInfo(getToken("access_token") as string).then((data) => {
           setUser(data);
-          setIsLoading(false);
+          setIsAuthenticated(true);
         });
       }
+      setIsLoading(false);
     }
   }, []);
 

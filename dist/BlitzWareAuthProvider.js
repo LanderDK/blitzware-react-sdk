@@ -27,8 +27,8 @@ export const useLogout = () => {
 export const BlitzWareAuthProvider = ({ children, authParams, }) => {
     const authState = React.useRef(getState() || nanoid());
     const didInitialise = React.useRef(false);
-    const [isAuthenticated, setIsAuthenticated] = React.useState(isTokenValid());
     const [user, setUser] = React.useState(null);
+    const [isAuthenticated, setIsAuthenticated] = React.useState(isTokenValid());
     const [isLoading, setIsLoading] = React.useState(true);
     React.useEffect(() => {
         if (didInitialise.current)
@@ -60,13 +60,13 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
                 setToken("refresh_token", refresh_token);
         }
         else {
-            setIsAuthenticated(isTokenValid());
             if (isTokenValid()) {
                 fetchUserInfo(getToken("access_token")).then((data) => {
                     setUser(data);
-                    setIsLoading(false);
+                    setIsAuthenticated(true);
                 });
             }
+            setIsLoading(false);
         }
     }, []);
     const login = React.useCallback(() => {
