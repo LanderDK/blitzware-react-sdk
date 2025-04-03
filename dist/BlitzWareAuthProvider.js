@@ -83,5 +83,5 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
         setUser(null);
     }, []);
     const value = React.useMemo(() => ({ isAuthenticated, user, isLoading, login, logout }), [isAuthenticated, user, isLoading, login, logout]);
-    return (_jsx(BlitzWareAuthContext.Provider, Object.assign({ value: value }, { children: children })));
+    return (_jsx(BlitzWareAuthContext.Provider, { value: value, children: children }));
 };
