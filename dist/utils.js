@@ -7,24 +7,60 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+import { BlitzWareAuthError, } from "./types";
 import { Buffer } from "buffer";
 import axios from "axios";
 const TOKEN_RE = /[?&]access_token=[^&]+/;
+const CODE_RE = /[?&]code=[^&]+/;
 const STATE_RE = /[?&]state=[^&]+/;
-export const hasAuthParams = (searchParams = window.location.search) => TOKEN_RE.test(searchParams) && STATE_RE.test(searchParams);
-export const generateAuthUrl = ({ responseType = "token", clientId, redirectUri }, state) => {
-    const baseUrl = "https://auth.blitzware.xyz/api/auth/authorize";
+const BASE_URL = "https://auth.blitzware.xyz/api/auth/";
+export const hasAuthParams = (searchParams = window.location.search) => (TOKEN_RE.test(searchParams) || CODE_RE.test(searchParams)) &&
+    STATE_RE.test(searchParams);
+export const generateAuthUrl = (_a, state_1) => __awaiter(void 0, [_a, state_1], void 0, function* ({ responseType = "code", clientId, redirectUri }, state) {
+    const authUrl = BASE_URL + "authorize";
     const queryParams = new URLSearchParams({
         response_type: responseType,
         client_id: clientId,
         redirect_uri: redirectUri,
         state,
     });
-    return `${baseUrl}?${queryParams.toString()}`;
-};
-export const fetchUserInfo = (accessToken) => __awaiter(void 0, void 0, void 0, function* () {
+    if (responseType === "code") {
+        const verifier = generateCodeVerifier();
+        const challenge = yield generateCodeChallenge(verifier);
+        setCodeVerifier(verifier);
+        queryParams.append("code_challenge", challenge);
+        queryParams.append("code_challenge_method", "S256");
+    }
+    return `${authUrl}?${queryParams.toString()}`;
+});
+export const exchangeCodeForToken = (code, clientId, redirectUri) => __awaiter(void 0, void 0, void 0, function* () {
+    const codeVerifier = getCodeVerifier();
+    if (!codeVerifier)
+        throw new BlitzWareAuthError("Missing PKCE code_verifier", "missing_code_verifier");
+    const tokenUrl = BASE_URL + "token";
     try {
-        const response = yield axios.get(`https://auth.blitzware.xyz/api/auth/userinfo`, {
+        const response = yield axios.post(tokenUrl, {
+            grant_type: "authorization_code",
+            code,
+            client_id: clientId,
+            redirect_uri: redirectUri,
+            code_verifier: codeVerifier,
+        }, {
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+        removeCodeVerifier();
+        return response.data;
+    }
+    catch (error) {
+        throw new BlitzWareAuthError("Failed to exchange code for token", "exchange_failed");
+    }
+});
+export const fetchUserInfo = (accessToken) => __awaiter(void 0, void 0, void 0, function* () {
+    const userInfoUrl = BASE_URL + "userinfo";
+    try {
+        const response = yield axios.get(userInfoUrl, {
             params: {
                 access_token: accessToken,
             },
@@ -32,7 +68,34 @@ export const fetchUserInfo = (accessToken) => __awaiter(void 0, void 0, void 0, 
         return response.data;
     }
     catch (error) {
-        throw new Error("Failed to fetch user info");
+        throw new BlitzWareAuthError("Failed to fetch user info", "userinfo_failed");
+    }
+});
+export const tryRefreshToken = (clientId) => __awaiter(void 0, void 0, void 0, function* () {
+    const refreshToken = getToken("refresh_token");
+    if (!refreshToken)
+        throw new BlitzWareAuthError("No refresh token available", "no_refresh_token");
+    const tokenUrl = BASE_URL + "token";
+    try {
+        const response = yield axios.post(tokenUrl, {
+            grant_type: "refresh_token",
+            refresh_token: refreshToken,
+            client_id: clientId,
+        }, {
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+        setToken("access_token", response.data.access_token);
+        if (response.data.refresh_token) {
+            setToken("refresh_token", response.data.refresh_token);
+        }
+        return response.data;
+    }
+    catch (error) {
+        removeToken("access_token");
+        removeToken("refresh_token");
+        throw new BlitzWareAuthError("Failed to refresh token", "refresh_failed");
     }
 });
 export const setToken = (type, token) => {
@@ -84,4 +147,45 @@ export const getState = () => {
 };
 export const removeState = () => {
     localStorage.removeItem("state");
+};
+/**
+ * Generate a high-entropy code_verifier
+ */
+const generateCodeVerifier = () => {
+    const array = new Uint8Array(64);
+    window.crypto.getRandomValues(array);
+    return btoa(String.fromCharCode(...array))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+};
+/**
+ * Create a code_challenge from a code_verifier
+ */
+const generateCodeChallenge = (verifier) => __awaiter(void 0, void 0, void 0, function* () {
+    const data = new TextEncoder().encode(verifier);
+    const digest = yield window.crypto.subtle.digest("SHA-256", data);
+    const hash = new Uint8Array(digest);
+    return btoa(String.fromCharCode(...hash))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+});
+/**
+ * Save code_verifier
+ */
+const setCodeVerifier = (verifier) => {
+    localStorage.setItem("pkce_code_verifier", verifier);
+};
+/**
+ * Get code_verifier
+ */
+const getCodeVerifier = () => {
+    return localStorage.getItem("pkce_code_verifier");
+};
+/**
+ * Remove code_verifier
+ */
+const removeCodeVerifier = () => {
+    localStorage.removeItem("pkce_code_verifier");
 };

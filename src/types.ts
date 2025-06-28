@@ -29,3 +29,13 @@ export interface BlitzWareAuthUser {
   email?: string;
   roles?: string[];
 }
+
+export class BlitzWareAuthError extends Error {
+  code: string;
+
+  constructor(message: string, code: string) {
+    super(message);
+    this.code = code;
+    this.name = "BlitzWareAuthError";
+  }
+}

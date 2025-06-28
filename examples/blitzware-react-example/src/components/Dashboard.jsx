@@ -16,14 +16,21 @@ const Dashboard = () => {
     return <div>Loading...</div>;
   }
 
+  if (!isAuthenticated) {
+    return <div>Not authenticated</div>;
+  }
+
+  if (!user) {
+    return <div>User data not loaded</div>;
+  }
+
   return (
-    isAuthenticated && (
-      <div>
-        <h1>Dashboard</h1>
-        <p>Welcome to the protected dashboard, {user.username}!</p>
-        <button onClick={logout}>Logout</button>
-      </div>
-    )
+    <div>
+      <h1>Dashboard</h1>
+      <p>Welcome to the protected dashboard, {user.username}!</p>
+      <pre>{JSON.stringify(user, null, 2)}</pre>
+      <button onClick={logout}>Logout</button>
+    </div>
   );
 };
 

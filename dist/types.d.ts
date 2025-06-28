@@ -24,4 +24,8 @@ export interface BlitzWareAuthUser {
     email?: string;
     roles?: string[];
 }
+export declare class BlitzWareAuthError extends Error {
+    code: string;
+    constructor(message: string, code: string);
+}
 //# sourceMappingURL=types.d.ts.map

@@ -15,6 +15,8 @@ import {
   removeState,
   fetchUserInfo,
   getToken,
+  exchangeCodeForToken,
+  tryRefreshToken,
 } from "./utils";
 import { nanoid } from "nanoid";
 
@@ -63,46 +65,97 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
     if (didInitialise.current) return;
     didInitialise.current = true;
 
-    if (hasAuthParams()) {
-      const urlParams = new URLSearchParams(window.location.search);
+    const handleAuthCallback = async () => {
+      if (hasAuthParams()) {
+        const urlParams = new URLSearchParams(window.location.search);
 
-      const state = urlParams.get("state");
-      if (state !== authState.current) {
-        setIsAuthenticated(false);
-        setIsLoading(false);
-        return;
-      }
-
-      const access_token = urlParams.get("access_token");
-      if (access_token) {
-        setToken("access_token", access_token);
-        setIsAuthenticated(true);
-        fetchUserInfo(access_token).then((data) => {
-          setUser(data);
+        const state = urlParams.get("state");
+        if (state !== authState.current) {
+          setIsAuthenticated(false);
           setIsLoading(false);
-        });
-      } else {
-        setIsAuthenticated(false);
-        setIsLoading(false);
-      }
+          return;
+        }
 
-      const refresh_token = urlParams.get("refresh_token");
-      if (refresh_token) setToken("refresh_token", refresh_token);
-    } else {
-      if (isTokenValid()) {
-        fetchUserInfo(getToken("access_token") as string).then((data) => {
-          setUser(data);
+        // Handle Authorization Code flow
+        const code = urlParams.get("code");
+        if (code) {
+          try {
+            const tokenResponse = await exchangeCodeForToken(
+              code,
+              authParams.clientId,
+              authParams.redirectUri
+            );
+
+            setToken("access_token", tokenResponse.access_token);
+            if (tokenResponse.refresh_token) {
+              setToken("refresh_token", tokenResponse.refresh_token);
+            }
+
+            const userData = await fetchUserInfo(tokenResponse.access_token);
+            setUser(userData);
+            setIsAuthenticated(true);
+
+            // Clean up URL
+            window.history.replaceState(
+              {},
+              document.title,
+              window.location.pathname
+            );
+          } catch (error) {
+            console.error("Failed to handle authorization code:", error);
+            setIsAuthenticated(false);
+          }
+          setIsLoading(false);
+          return;
+        }
+
+        // Handle Implicit flow
+        const access_token = urlParams.get("access_token");
+        if (access_token) {
+          setToken("access_token", access_token);
           setIsAuthenticated(true);
-        });
-      }
-      setIsLoading(false);
-    }
-  }, []);
+          fetchUserInfo(access_token).then((data) => {
+            setUser(data);
+            setIsLoading(false);
+          });
+        } else {
+          setIsAuthenticated(false);
+          setIsLoading(false);
+        }
 
-  const login = React.useCallback(() => {
+        const refresh_token = urlParams.get("refresh_token");
+        if (refresh_token) setToken("refresh_token", refresh_token);
+      } else {
+        if (isTokenValid()) {
+          fetchUserInfo(getToken("access_token") as string).then((data) => {
+            setUser(data);
+            setIsAuthenticated(true);
+          });
+          setIsLoading(false);
+        } else {
+          tryRefreshToken(authParams.clientId)
+            .then((tokenResponse) => {
+              fetchUserInfo(tokenResponse.access_token).then((data) => {
+                setUser(data);
+                setIsAuthenticated(true);
+              });
+            })
+            .catch((e) => {
+              console.error(e);
+              setIsAuthenticated(false);
+            })
+            .finally(() => setIsLoading(false));
+        }
+      }
+    };
+
+    handleAuthCallback();
+  }, [authParams.clientId, authParams.redirectUri]);
+
+  const login = React.useCallback(async () => {
     const newState = nanoid();
     setState(newState);
-    const newAuthUrl = generateAuthUrl(authParams, newState);
+    const newAuthUrl = await generateAuthUrl(authParams, newState);
     window.location.href = newAuthUrl;
   }, [authParams]);
 
