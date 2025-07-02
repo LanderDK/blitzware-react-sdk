@@ -13,7 +13,7 @@ import axios from "axios";
 const TOKEN_RE = /[?&]access_token=[^&]+/;
 const CODE_RE = /[?&]code=[^&]+/;
 const STATE_RE = /[?&]state=[^&]+/;
-const BASE_URL = "http://localhost:9001/api/auth/";
+const BASE_URL = "https://auth.blitzware.xyz/api/auth/";
 /**
  * Checks if the URL search parameters contain authentication parameters.
  * @param searchParams - The URL search string to check (defaults to window.location.search).
