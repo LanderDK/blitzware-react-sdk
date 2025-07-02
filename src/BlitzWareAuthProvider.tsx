@@ -3,7 +3,6 @@ import {
   BlitzWareAuthProviderParams,
   BlitzWareAuthContextType,
   BlitzWareAuthUser,
-  LogoutOptions,
 } from "./types";
 import {
   generateAuthUrl,
@@ -202,39 +201,19 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
    * Logs out the user by clearing tokens and optionally calling the logout service.
    * @param options - Optional logout configuration.
    */
-  const logout = React.useCallback(
-    async (options: LogoutOptions = {}) => {
-      // Merge with default options from authParams
-      const logoutOptions: LogoutOptions = {
-        postLogoutRedirectUri: authParams.postLogoutRedirectUri,
-        revokeTokens: true,
-        method: "POST",
-        ...options,
-      };
+  const logout = React.useCallback(async () => {
+    setIsLoading(true);
 
-      try {
-        // Call the logout service endpoint
-        await logoutFromService(authParams.clientId, logoutOptions);
-      } catch (error) {
-        // Log error but continue with local cleanup
-        console.error("Service logout failed:", error);
-      }
+    await logoutFromService(authParams.clientId);
 
-      // Always clear local state regardless of service call result
-      removeToken("access_token");
-      removeToken("refresh_token");
-      removeState();
-      removeCodeVerifier();
-      setIsAuthenticated(false);
-      setUser(null);
-
-      // If no redirect happened from service, redirect locally if specified
-      if (logoutOptions.postLogoutRedirectUri && !logoutOptions.state) {
-        window.location.href = logoutOptions.postLogoutRedirectUri;
-      }
-    },
-    [authParams.clientId, authParams.postLogoutRedirectUri]
-  );
+    // Always clear local state regardless of service call result
+    removeToken("access_token");
+    removeToken("refresh_token");
+    removeState();
+    removeCodeVerifier();
+    setIsAuthenticated(false);
+    setUser(null);
+  }, [authParams.clientId]);
 
   /**
    * Memoized context value for provider.

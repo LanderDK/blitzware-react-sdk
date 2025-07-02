@@ -1,5 +1,5 @@
 import React from "react";
-import { BlitzWareAuthProviderParams, BlitzWareAuthUser, LogoutOptions } from "./types";
+import { BlitzWareAuthProviderParams, BlitzWareAuthUser } from "./types";
 /**
  * Custom hook to get the authenticated user.
  * @returns The current authenticated user or null.
@@ -24,7 +24,7 @@ export declare const useLogin: () => () => void;
  * Custom hook to get the logout function.
  * @returns The logout function.
  */
-export declare const useLogout: () => (options?: LogoutOptions) => Promise<void>;
+export declare const useLogout: () => () => Promise<void>;
 /**
  * BlitzWareAuthProvider component that manages authentication state and provides context.
  * @param children - The child components to render.

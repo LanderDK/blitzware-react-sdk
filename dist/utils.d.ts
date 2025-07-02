@@ -1,4 +1,4 @@
-import { BlitzWareAuthParams, BlitzWareAuthUser, LogoutOptions } from "./types";
+import { BlitzWareAuthParams, BlitzWareAuthUser } from "./types";
 /**
  * Checks if the URL search parameters contain authentication parameters.
  * @param searchParams - The URL search string to check (defaults to window.location.search).
@@ -93,7 +93,7 @@ export declare const generateSecureState: () => string;
  * @returns Promise that resolves when logout is complete.
  * @throws BlitzWareAuthError if logout fails.
  */
-export declare const logoutFromService: (clientId: string, options?: LogoutOptions) => Promise<void>;
+export declare const logoutFromService: (clientId: string) => Promise<void>;
 /**
  * Revokes a specific token.
  * @param token - The token to revoke.

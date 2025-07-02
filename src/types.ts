@@ -5,14 +5,13 @@ export interface BlitzWareAuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: () => void;
-  logout: (options?: LogoutOptions) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 export interface BlitzWareAuthParams {
   responseType?: "code" | "token";
   clientId: string;
   redirectUri: string;
-  postLogoutRedirectUri?: string;
 }
 
 export interface BlitzWareAuthProviderParams {
@@ -29,13 +28,6 @@ export interface BlitzWareAuthUser {
   username: string;
   email?: string;
   roles?: string[];
-}
-
-export interface LogoutOptions {
-  postLogoutRedirectUri?: string;
-  state?: string;
-  revokeTokens?: boolean;
-  method?: "GET" | "POST";
 }
 
 export class BlitzWareAuthError extends Error {

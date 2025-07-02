@@ -163,17 +163,9 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
      * Logs out the user by clearing tokens and optionally calling the logout service.
      * @param options - Optional logout configuration.
      */
-    const logout = React.useCallback((...args_1) => __awaiter(void 0, [...args_1], void 0, function* (options = {}) {
-        // Merge with default options from authParams
-        const logoutOptions = Object.assign({ postLogoutRedirectUri: authParams.postLogoutRedirectUri, revokeTokens: true, method: "POST" }, options);
-        try {
-            // Call the logout service endpoint
-            yield logoutFromService(authParams.clientId, logoutOptions);
-        }
-        catch (error) {
-            // Log error but continue with local cleanup
-            console.error("Service logout failed:", error);
-        }
+    const logout = React.useCallback(() => __awaiter(void 0, void 0, void 0, function* () {
+        setIsLoading(true);
+        yield logoutFromService(authParams.clientId);
         // Always clear local state regardless of service call result
         removeToken("access_token");
         removeToken("refresh_token");
@@ -181,14 +173,10 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
         removeCodeVerifier();
         setIsAuthenticated(false);
         setUser(null);
-        // If no redirect happened from service, redirect locally if specified
-        if (logoutOptions.postLogoutRedirectUri && !logoutOptions.state) {
-            window.location.href = logoutOptions.postLogoutRedirectUri;
-        }
-    }), [authParams.clientId, authParams.postLogoutRedirectUri]);
+    }), [authParams.clientId]);
     /**
      * Memoized context value for provider.
      */
     const value = React.useMemo(() => ({ isAuthenticated, user, isLoading, login, logout }), [isAuthenticated, user, isLoading, login, logout]);
-    return (_jsx(BlitzWareAuthContext.Provider, { value: value, children: children }));
+    return (_jsx(BlitzWareAuthContext.Provider, Object.assign({ value: value }, { children: children })));
 };

@@ -12,7 +12,7 @@ import { Buffer } from "buffer";
 import axios from "axios";
 const TOKEN_RE = /[?&]access_token=[^&]+/;
 const CODE_RE = /[?&]code=[^&]+/;
-const STATE_RE = /[?&]state=[^&]Ò+/;
+const STATE_RE = /[?&]state=[^&]+/;
 const BASE_URL = "http://localhost:9001/api/auth/";
 /**
  * Checks if the URL search parameters contain authentication parameters.
@@ -27,7 +27,7 @@ export const hasAuthParams = (searchParams = window.location.search) => (TOKEN_R
  * @param state - The state string to include in the request.
  * @returns The full authorization URL.
  */
-export const generateAuthUrl = (_a, state_1) => __awaiter(void 0, [_a, state_1], void 0, function* ({ responseType = "code", clientId, redirectUri }, state) {
+export const generateAuthUrl = ({ responseType = "code", clientId, redirectUri }, state) => __awaiter(void 0, void 0, void 0, function* () {
     const authUrl = BASE_URL + "authorize";
     const queryParams = new URLSearchParams({
         response_type: responseType,
@@ -68,6 +68,7 @@ export const exchangeCodeForToken = (code, clientId, redirectUri) => __awaiter(v
             headers: {
                 "Content-Type": "application/json",
             },
+            withCredentials: true,
         });
         removeCodeVerifier();
         return response.data;
@@ -89,6 +90,7 @@ export const fetchUserInfo = (accessToken) => __awaiter(void 0, void 0, void 0, 
             params: {
                 access_token: accessToken,
             },
+            withCredentials: true,
         });
         return response.data;
     }
@@ -116,6 +118,7 @@ export const tryRefreshToken = (clientId) => __awaiter(void 0, void 0, void 0, f
             headers: {
                 "Content-Type": "application/json",
             },
+            withCredentials: true,
         });
         setToken("access_token", response.data.access_token);
         if (response.data.refresh_token) {
@@ -283,70 +286,18 @@ export const generateSecureState = () => {
  * @returns Promise that resolves when logout is complete.
  * @throws BlitzWareAuthError if logout fails.
  */
-export const logoutFromService = (clientId_1, ...args_1) => __awaiter(void 0, [clientId_1, ...args_1], void 0, function* (clientId, options = {}) {
-    var _a, _b;
-    const { postLogoutRedirectUri, state, revokeTokens = true, method = "POST", } = options;
+export const logoutFromService = (clientId) => __awaiter(void 0, void 0, void 0, function* () {
     const logoutUrl = BASE_URL + "logout";
-    const accessToken = getToken("access_token");
-    const refreshToken = getToken("refresh_token");
     try {
-        if (method === "GET") {
-            // Use GET method with query parameters
-            const queryParams = new URLSearchParams();
-            if (postLogoutRedirectUri) {
-                queryParams.append("post_logout_redirect_uri", postLogoutRedirectUri);
-            }
-            if (state) {
-                queryParams.append("state", state);
-            }
-            const response = yield axios.get(`${logoutUrl}?${queryParams.toString()}`);
-            // Handle redirect response
-            if ((_a = response.data) === null || _a === void 0 ? void 0 : _a.redirectUrl) {
-                window.location.href = response.data.redirectUrl;
-                return;
-            }
-        }
-        else {
-            // Use POST method with body
-            const requestBody = {
-                revoke_tokens: revokeTokens,
-                client_id: clientId,
-            };
-            // Include token information if available
-            if (accessToken) {
-                requestBody.token = accessToken;
-                requestBody.token_type_hint = "access_token";
-            }
-            else if (refreshToken) {
-                requestBody.token = refreshToken;
-                requestBody.token_type_hint = "refresh_token";
-            }
-            const queryParams = new URLSearchParams();
-            if (postLogoutRedirectUri) {
-                queryParams.append("post_logout_redirect_uri", postLogoutRedirectUri);
-            }
-            if (state) {
-                queryParams.append("state", state);
-            }
-            const url = queryParams.toString()
-                ? `${logoutUrl}?${queryParams.toString()}`
-                : logoutUrl;
-            const response = yield axios.post(url, requestBody, {
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
-            // Handle redirect response
-            if ((_b = response.data) === null || _b === void 0 ? void 0 : _b.redirectUrl) {
-                window.location.href = response.data.redirectUrl;
-                return;
-            }
-        }
+        yield axios.post(logoutUrl, { client_id: clientId }, {
+            headers: {
+                "Content-Type": "application/json",
+            },
+            withCredentials: true,
+        });
     }
     catch (error) {
-        // Log error but don't fail the logout process
-        console.error("Error during service logout:", error);
-        // Don't throw here - we still want to clear local tokens
+        throw new BlitzWareAuthError("Failed to log out", "logout_failed");
     }
 });
 /**
