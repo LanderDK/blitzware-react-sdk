@@ -12,9 +12,9 @@ root.render(
     <BrowserRouter>
       <BlitzWareAuthProvider
         authParams={{
-          clientId: "824825f6-5ab6-4fa1-b8d0-38c30fb97ee4",
-          redirectUri: "http://localhost:3001/",
-          responseType: "code",
+          clientId: "your-client-id",
+          redirectUri: "your-redirect-uri",
+          responseType: "code", // or "token" for implicit flow
         }}
       >
         <App />
