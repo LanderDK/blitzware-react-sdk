@@ -3,6 +3,7 @@ import {
   BlitzWareAuthProviderParams,
   BlitzWareAuthContextType,
   BlitzWareAuthUser,
+  LogoutOptions,
 } from "./types";
 import {
   generateAuthUrl,
@@ -17,50 +18,85 @@ import {
   getToken,
   exchangeCodeForToken,
   tryRefreshToken,
+  removeCodeVerifier,
+  generateSecureState,
+  logoutFromService,
 } from "./utils";
-import { nanoid } from "nanoid";
 
 const BlitzWareAuthContext = React.createContext<BlitzWareAuthContextType>(
   {} as BlitzWareAuthContextType
 );
 
+/**
+ * Custom hook to access the BlitzWare authentication context.
+ * @returns The BlitzWareAuthContext value.
+ */
 const useBlitzWareAuth = () => React.useContext(BlitzWareAuthContext);
 
+/**
+ * Custom hook to get the authenticated user.
+ * @returns The current authenticated user or null.
+ */
 export const useAuthUser = () => {
   const { user } = useBlitzWareAuth();
   return user;
 };
 
+/**
+ * Custom hook to check if the user is authenticated.
+ * @returns True if authenticated, false otherwise.
+ */
 export const useIsAuthenticated = () => {
   const { isAuthenticated } = useBlitzWareAuth();
   return isAuthenticated;
 };
 
+/**
+ * Custom hook to check if authentication is loading.
+ * @returns True if loading, false otherwise.
+ */
 export const useAuthLoading = () => {
   const { isLoading } = useBlitzWareAuth();
   return isLoading;
 };
 
+/**
+ * Custom hook to get the login function.
+ * @returns The login function.
+ */
 export const useLogin = () => {
   const { login } = useBlitzWareAuth();
   return login;
 };
 
+/**
+ * Custom hook to get the logout function.
+ * @returns The logout function.
+ */
 export const useLogout = () => {
   const { logout } = useBlitzWareAuth();
   return logout;
 };
 
+/**
+ * BlitzWareAuthProvider component that manages authentication state and provides context.
+ * @param children - The child components to render.
+ * @param authParams - The authentication parameters.
+ * @returns The provider component wrapping its children.
+ */
 export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
   children,
   authParams,
 }) => {
-  const authState = React.useRef(getState() || nanoid());
+  const authState = React.useRef(getState() || generateSecureState());
   const didInitialise = React.useRef(false);
   const [user, setUser] = React.useState<BlitzWareAuthUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = React.useState(isTokenValid());
   const [isLoading, setIsLoading] = React.useState(true);
 
+  /**
+   * Effect to handle authentication callback and user state initialization.
+   */
   React.useEffect(() => {
     if (didInitialise.current) return;
     didInitialise.current = true;
@@ -152,21 +188,57 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
     handleAuthCallback();
   }, [authParams.clientId, authParams.redirectUri]);
 
+  /**
+   * Initiates the login process by redirecting to the authorization URL.
+   */
   const login = React.useCallback(async () => {
-    const newState = nanoid();
+    const newState = generateSecureState();
     setState(newState);
     const newAuthUrl = await generateAuthUrl(authParams, newState);
     window.location.href = newAuthUrl;
   }, [authParams]);
 
-  const logout = React.useCallback(() => {
-    removeToken("access_token");
-    removeToken("refresh_token");
-    removeState();
-    setIsAuthenticated(false);
-    setUser(null);
-  }, []);
+  /**
+   * Logs out the user by clearing tokens and optionally calling the logout service.
+   * @param options - Optional logout configuration.
+   */
+  const logout = React.useCallback(
+    async (options: LogoutOptions = {}) => {
+      // Merge with default options from authParams
+      const logoutOptions: LogoutOptions = {
+        postLogoutRedirectUri: authParams.postLogoutRedirectUri,
+        revokeTokens: true,
+        method: "POST",
+        ...options,
+      };
 
+      try {
+        // Call the logout service endpoint
+        await logoutFromService(authParams.clientId, logoutOptions);
+      } catch (error) {
+        // Log error but continue with local cleanup
+        console.error("Service logout failed:", error);
+      }
+
+      // Always clear local state regardless of service call result
+      removeToken("access_token");
+      removeToken("refresh_token");
+      removeState();
+      removeCodeVerifier();
+      setIsAuthenticated(false);
+      setUser(null);
+
+      // If no redirect happened from service, redirect locally if specified
+      if (logoutOptions.postLogoutRedirectUri && !logoutOptions.state) {
+        window.location.href = logoutOptions.postLogoutRedirectUri;
+      }
+    },
+    [authParams.clientId, authParams.postLogoutRedirectUri]
+  );
+
+  /**
+   * Memoized context value for provider.
+   */
   const value = React.useMemo(
     () => ({ isAuthenticated, user, isLoading, login, logout }),
     [isAuthenticated, user, isLoading, login, logout]

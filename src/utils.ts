@@ -2,19 +2,31 @@ import {
   BlitzWareAuthParams,
   BlitzWareAuthUser,
   BlitzWareAuthError,
+  LogoutOptions,
 } from "./types";
 import { Buffer } from "buffer";
 import axios from "axios";
 
 const TOKEN_RE = /[?&]access_token=[^&]+/;
 const CODE_RE = /[?&]code=[^&]+/;
-const STATE_RE = /[?&]state=[^&]+/;
-const BASE_URL = "https://auth.blitzware.xyz/api/auth/";
+const STATE_RE = /[?&]state=[^&]Ò+/;
+const BASE_URL = "http://localhost:9001/api/auth/";
 
+/**
+ * Checks if the URL search parameters contain authentication parameters.
+ * @param searchParams - The URL search string to check (defaults to window.location.search).
+ * @returns True if authentication parameters are present, false otherwise.
+ */
 export const hasAuthParams = (searchParams = window.location.search): boolean =>
   (TOKEN_RE.test(searchParams) || CODE_RE.test(searchParams)) &&
   STATE_RE.test(searchParams);
 
+/**
+ * Generates the BlitzWare authorization URL with optional PKCE support.
+ * @param params - The authorization parameters.
+ * @param state - The state string to include in the request.
+ * @returns The full authorization URL.
+ */
 export const generateAuthUrl = async (
   { responseType = "code", clientId, redirectUri }: BlitzWareAuthParams,
   state: string
@@ -38,6 +50,14 @@ export const generateAuthUrl = async (
   return `${authUrl}?${queryParams.toString()}`;
 };
 
+/**
+ * Exchanges an authorization code for access and refresh tokens.
+ * @param code - The authorization code received from the authorization server.
+ * @param clientId - The client ID.
+ * @param redirectUri - The redirect URI.
+ * @returns An object containing the access token and optionally a refresh token.
+ * @throws BlitzWareAuthError if the code_verifier is missing or the exchange fails.
+ */
 export const exchangeCodeForToken = async (
   code: string,
   clientId: string,
@@ -78,6 +98,12 @@ export const exchangeCodeForToken = async (
   }
 };
 
+/**
+ * Fetches user information using the provided access token.
+ * @param accessToken - The access token.
+ * @returns The authenticated user's information.
+ * @throws BlitzWareAuthError if the request fails.
+ */
 export const fetchUserInfo = async (
   accessToken: string
 ): Promise<BlitzWareAuthUser> => {
@@ -97,6 +123,12 @@ export const fetchUserInfo = async (
   }
 };
 
+/**
+ * Attempts to refresh the access token using the stored refresh token.
+ * @param clientId - The client ID.
+ * @returns An object containing the new access token and optionally a new refresh token.
+ * @throws BlitzWareAuthError if no refresh token is available or the refresh fails.
+ */
 export const tryRefreshToken = async (
   clientId: string
 ): Promise<{ access_token: string; refresh_token?: string }> => {
@@ -137,6 +169,11 @@ export const tryRefreshToken = async (
   }
 };
 
+/**
+ * Stores an access or refresh token in localStorage.
+ * @param type - The type of token ("access_token" or "refresh_token").
+ * @param token - The token value.
+ */
 export const setToken = (
   type: "access_token" | "refresh_token",
   token: string
@@ -144,16 +181,30 @@ export const setToken = (
   localStorage.setItem(type, token);
 };
 
+/**
+ * Retrieves an access or refresh token from localStorage.
+ * @param type - The type of token ("access_token" or "refresh_token").
+ * @returns The token value or null if not found.
+ */
 export const getToken = (
   type: "access_token" | "refresh_token"
 ): string | null => {
   return localStorage.getItem(type);
 };
 
+/**
+ * Removes an access or refresh token from localStorage.
+ * @param type - The type of token ("access_token" or "refresh_token").
+ */
 export const removeToken = (type: "access_token" | "refresh_token") => {
   localStorage.removeItem(type);
 };
 
+/**
+ * Decodes a JWT and returns its payload as an object.
+ * @param token - The JWT string.
+ * @returns The decoded payload object, or {} if decoding fails.
+ */
 const parseJwt = (token: string) => {
   try {
     if (!token) return {};
@@ -166,6 +217,11 @@ const parseJwt = (token: string) => {
   }
 };
 
+/**
+ * Converts a JWT exp (expiration) value to a Date object.
+ * @param exp - The expiration value (number or string).
+ * @returns The expiration as a Date, or null if invalid.
+ */
 const parseExp = (exp: number | string) => {
   if (!exp) return null;
   if (typeof exp !== "number") exp = Number(exp);
@@ -173,6 +229,10 @@ const parseExp = (exp: number | string) => {
   return new Date(exp * 1000);
 };
 
+/**
+ * Checks if the stored access token is valid (not expired).
+ * @returns True if the token is valid, false otherwise.
+ */
 export const isTokenValid = (): boolean => {
   const token = getToken("access_token");
   if (!token) return false;
@@ -183,20 +243,32 @@ export const isTokenValid = (): boolean => {
   return expiration > new Date();
 };
 
+/**
+ * Stores the OAuth state value in localStorage.
+ * @param state - The state string.
+ */
 export const setState = (state: string) => {
   localStorage.setItem("state", state);
 };
 
+/**
+ * Retrieves the OAuth state value from localStorage.
+ * @returns The state string or null if not found.
+ */
 export const getState = () => {
   return localStorage.getItem("state");
 };
 
+/**
+ * Removes the OAuth state value from localStorage.
+ */
 export const removeState = () => {
   localStorage.removeItem("state");
 };
 
 /**
- * Generate a high-entropy code_verifier
+ * Generates a high-entropy PKCE code_verifier.
+ * @returns The code_verifier string.
  */
 const generateCodeVerifier = (): string => {
   const array = new Uint8Array(64);
@@ -208,7 +280,9 @@ const generateCodeVerifier = (): string => {
 };
 
 /**
- * Create a code_challenge from a code_verifier
+ * Generates a PKCE code_challenge from a code_verifier.
+ * @param verifier - The code_verifier string.
+ * @returns The code_challenge string.
  */
 const generateCodeChallenge = async (verifier: string): Promise<string> => {
   const data = new TextEncoder().encode(verifier);
@@ -221,22 +295,160 @@ const generateCodeChallenge = async (verifier: string): Promise<string> => {
 };
 
 /**
- * Save code_verifier
+ * Stores the PKCE code_verifier in localStorage.
+ * @param verifier - The code_verifier string.
  */
 const setCodeVerifier = (verifier: string) => {
   localStorage.setItem("pkce_code_verifier", verifier);
 };
 
 /**
- * Get code_verifier
+ * Retrieves the PKCE code_verifier from localStorage.
+ * @returns The code_verifier string or null if not found.
  */
 const getCodeVerifier = (): string | null => {
   return localStorage.getItem("pkce_code_verifier");
 };
 
 /**
- * Remove code_verifier
+ * Removes the PKCE code_verifier from localStorage.
  */
-const removeCodeVerifier = () => {
+export const removeCodeVerifier = () => {
   localStorage.removeItem("pkce_code_verifier");
+};
+
+/**
+ * Generates a cryptographically secure random state string.
+ * @returns A base64url-encoded random string.
+ */
+export const generateSecureState = (): string => {
+  const array = new Uint8Array(32); // 256 bits of entropy
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+};
+
+/**
+ * Logs out the user from the BlitzWare authentication service.
+ * @param clientId - The client ID.
+ * @param options - Optional logout configuration.
+ * @returns Promise that resolves when logout is complete.
+ * @throws BlitzWareAuthError if logout fails.
+ */
+export const logoutFromService = async (
+  clientId: string,
+  options: LogoutOptions = {}
+): Promise<void> => {
+  const {
+    postLogoutRedirectUri,
+    state,
+    revokeTokens = true,
+    method = "POST",
+  } = options;
+
+  const logoutUrl = BASE_URL + "logout";
+  const accessToken = getToken("access_token");
+  const refreshToken = getToken("refresh_token");
+
+  try {
+    if (method === "GET") {
+      // Use GET method with query parameters
+      const queryParams = new URLSearchParams();
+
+      if (postLogoutRedirectUri) {
+        queryParams.append("post_logout_redirect_uri", postLogoutRedirectUri);
+      }
+      if (state) {
+        queryParams.append("state", state);
+      }
+
+      const response = await axios.get(
+        `${logoutUrl}?${queryParams.toString()}`
+      );
+
+      // Handle redirect response
+      if (response.data?.redirectUrl) {
+        window.location.href = response.data.redirectUrl;
+        return;
+      }
+    } else {
+      // Use POST method with body
+      const requestBody: any = {
+        revoke_tokens: revokeTokens,
+        client_id: clientId,
+      };
+
+      // Include token information if available
+      if (accessToken) {
+        requestBody.token = accessToken;
+        requestBody.token_type_hint = "access_token";
+      } else if (refreshToken) {
+        requestBody.token = refreshToken;
+        requestBody.token_type_hint = "refresh_token";
+      }
+
+      const queryParams = new URLSearchParams();
+      if (postLogoutRedirectUri) {
+        queryParams.append("post_logout_redirect_uri", postLogoutRedirectUri);
+      }
+      if (state) {
+        queryParams.append("state", state);
+      }
+
+      const url = queryParams.toString()
+        ? `${logoutUrl}?${queryParams.toString()}`
+        : logoutUrl;
+
+      const response = await axios.post(url, requestBody, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      // Handle redirect response
+      if (response.data?.redirectUrl) {
+        window.location.href = response.data.redirectUrl;
+        return;
+      }
+    }
+  } catch (error) {
+    // Log error but don't fail the logout process
+    console.error("Error during service logout:", error);
+    // Don't throw here - we still want to clear local tokens
+  }
+};
+
+/**
+ * Revokes a specific token.
+ * @param token - The token to revoke.
+ * @param tokenTypeHint - The type of token being revoked.
+ * @param clientId - The client ID.
+ * @throws BlitzWareAuthError if revocation fails.
+ */
+export const revokeToken = async (
+  token: string,
+  tokenTypeHint: "access_token" | "refresh_token",
+  clientId: string
+): Promise<void> => {
+  const revokeUrl = BASE_URL + "revoke";
+
+  try {
+    await axios.post(
+      revokeUrl,
+      {
+        token,
+        token_type_hint: tokenTypeHint,
+        client_id: clientId,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  } catch (error) {
+    throw new BlitzWareAuthError("Failed to revoke token", "revoke_failed");
+  }
 };
