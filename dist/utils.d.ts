@@ -32,7 +32,7 @@ export declare const exchangeCodeForToken: (code: string, clientId: string, redi
  * Fetches user information using the provided access token.
  * @param accessToken - The access token.
  * @returns The authenticated user's information.
- * @throws BlitzWareAuthError if the request fails. Clears session on unauthorized errors.
+ * @throws BlitzWareAuthError if the request fails.
  */
 export declare const fetchUserInfo: (accessToken: string) => Promise<BlitzWareAuthUser>;
 /**

@@ -109,7 +109,7 @@ export const exchangeCodeForToken = (code, clientId, redirectUri) => __awaiter(v
  * Fetches user information using the provided access token.
  * @param accessToken - The access token.
  * @returns The authenticated user's information.
- * @throws BlitzWareAuthError if the request fails. Clears session on unauthorized errors.
+ * @throws BlitzWareAuthError if the request fails.
  */
 export const fetchUserInfo = (accessToken) => __awaiter(void 0, void 0, void 0, function* () {
     const userInfoUrl = BASE_URL + "userinfo";
