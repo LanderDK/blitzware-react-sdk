@@ -1,5 +1,9 @@
 import { BlitzWareAuthParams, BlitzWareAuthUser } from "./types";
 /**
+ * Clears the current session by removing all stored tokens and state.
+ */
+export declare const clearSession: () => void;
+/**
  * Checks if the URL search parameters contain authentication parameters.
  * @param searchParams - The URL search string to check (defaults to window.location.search).
  * @returns True if authentication parameters are present, false otherwise.
@@ -28,7 +32,7 @@ export declare const exchangeCodeForToken: (code: string, clientId: string, redi
  * Fetches user information using the provided access token.
  * @param accessToken - The access token.
  * @returns The authenticated user's information.
- * @throws BlitzWareAuthError if the request fails.
+ * @throws BlitzWareAuthError if the request fails. Clears session on unauthorized errors.
  */
 export declare const fetchUserInfo: (accessToken: string) => Promise<BlitzWareAuthUser>;
 /**

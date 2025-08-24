@@ -26,6 +26,7 @@ export interface BlitzWareAuthUser {
 }
 export declare class BlitzWareAuthError extends Error {
     code: string;
-    constructor(message: string, code: string);
+    details?: Record<string, any>;
+    constructor(message: string, code: string, details?: Record<string, any>);
 }
 //# sourceMappingURL=types.d.ts.map

@@ -12,6 +12,46 @@ const STATE_RE = /[?&]state=[^&]+/;
 const BASE_URL = "https://auth.blitzware.xyz/api/auth/";
 
 /**
+ * Parses an API error response and creates a BlitzWareAuthError.
+ * @param error - The axios error or generic error.
+ * @param fallbackMessage - Fallback message if parsing fails.
+ * @param fallbackCode - Fallback code if parsing fails.
+ * @returns A BlitzWareAuthError with parsed details.
+ */
+const parseApiError = (
+  error: any,
+  fallbackMessage: string,
+  fallbackCode: string
+): BlitzWareAuthError => {
+  // Check if it's an axios error with response data
+  if (error?.response?.data) {
+    const responseData = error.response.data;
+
+    // Check if response matches our API error format
+    if (responseData.code && responseData.message) {
+      return new BlitzWareAuthError(
+        responseData.message,
+        responseData.code,
+        responseData.details
+      );
+    }
+  }
+
+  // Fallback to generic error
+  return new BlitzWareAuthError(fallbackMessage, fallbackCode);
+};
+
+/**
+ * Clears the current session by removing all stored tokens and state.
+ */
+export const clearSession = (): void => {
+  removeToken("access_token");
+  removeToken("refresh_token");
+  removeState();
+  removeCodeVerifier();
+};
+
+/**
  * Checks if the URL search parameters contain authentication parameters.
  * @param searchParams - The URL search string to check (defaults to window.location.search).
  * @returns True if authentication parameters are present, false otherwise.
@@ -85,13 +125,13 @@ export const exchangeCodeForToken = async (
         headers: {
           "Content-Type": "application/json",
         },
-        withCredentials: true,
       }
     );
     removeCodeVerifier();
     return response.data;
   } catch (error) {
-    throw new BlitzWareAuthError(
+    throw parseApiError(
+      error,
       "Failed to exchange code for token",
       "exchange_failed"
     );
@@ -113,14 +153,10 @@ export const fetchUserInfo = async (
       params: {
         access_token: accessToken,
       },
-      withCredentials: true,
     });
     return response.data;
   } catch (error) {
-    throw new BlitzWareAuthError(
-      "Failed to fetch user info",
-      "userinfo_failed"
-    );
+    throw parseApiError(error, "Failed to fetch user info", "userinfo_failed");
   }
 };
 
@@ -154,7 +190,6 @@ export const tryRefreshToken = async (
         headers: {
           "Content-Type": "application/json",
         },
-        withCredentials: true,
       }
     );
 
@@ -165,9 +200,7 @@ export const tryRefreshToken = async (
 
     return response.data;
   } catch (error) {
-    removeToken("access_token");
-    removeToken("refresh_token");
-    throw new BlitzWareAuthError("Failed to refresh token", "refresh_failed");
+    throw parseApiError(error, "Failed to refresh token", "refresh_failed");
   }
 };
 
@@ -350,11 +383,10 @@ export const logoutFromService = async (clientId: string): Promise<void> => {
         headers: {
           "Content-Type": "application/json",
         },
-        withCredentials: true,
       }
     );
   } catch (error) {
-    throw new BlitzWareAuthError("Failed to log out", "logout_failed");
+    throw parseApiError(error, "Failed to log out", "logout_failed");
   }
 };
 
@@ -387,6 +419,6 @@ export const revokeToken = async (
       }
     );
   } catch (error) {
-    throw new BlitzWareAuthError("Failed to revoke token", "revoke_failed");
+    throw parseApiError(error, "Failed to revoke token", "revoke_failed");
   }
 };

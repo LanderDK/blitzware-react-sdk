@@ -15,6 +15,35 @@ const CODE_RE = /[?&]code=[^&]+/;
 const STATE_RE = /[?&]state=[^&]+/;
 const BASE_URL = "https://auth.blitzware.xyz/api/auth/";
 /**
+ * Parses an API error response and creates a BlitzWareAuthError.
+ * @param error - The axios error or generic error.
+ * @param fallbackMessage - Fallback message if parsing fails.
+ * @param fallbackCode - Fallback code if parsing fails.
+ * @returns A BlitzWareAuthError with parsed details.
+ */
+const parseApiError = (error, fallbackMessage, fallbackCode) => {
+    var _a;
+    // Check if it's an axios error with response data
+    if ((_a = error === null || error === void 0 ? void 0 : error.response) === null || _a === void 0 ? void 0 : _a.data) {
+        const responseData = error.response.data;
+        // Check if response matches our API error format
+        if (responseData.code && responseData.message) {
+            return new BlitzWareAuthError(responseData.message, responseData.code, responseData.details);
+        }
+    }
+    // Fallback to generic error
+    return new BlitzWareAuthError(fallbackMessage, fallbackCode);
+};
+/**
+ * Clears the current session by removing all stored tokens and state.
+ */
+export const clearSession = () => {
+    removeToken("access_token");
+    removeToken("refresh_token");
+    removeState();
+    removeCodeVerifier();
+};
+/**
  * Checks if the URL search parameters contain authentication parameters.
  * @param searchParams - The URL search string to check (defaults to window.location.search).
  * @returns True if authentication parameters are present, false otherwise.
@@ -27,7 +56,7 @@ export const hasAuthParams = (searchParams = window.location.search) => (TOKEN_R
  * @param state - The state string to include in the request.
  * @returns The full authorization URL.
  */
-export const generateAuthUrl = ({ responseType = "code", clientId, redirectUri }, state) => __awaiter(void 0, void 0, void 0, function* () {
+export const generateAuthUrl = (_a, state_1) => __awaiter(void 0, [_a, state_1], void 0, function* ({ responseType = "code", clientId, redirectUri }, state) {
     const authUrl = BASE_URL + "authorize";
     const queryParams = new URLSearchParams({
         response_type: responseType,
@@ -68,20 +97,19 @@ export const exchangeCodeForToken = (code, clientId, redirectUri) => __awaiter(v
             headers: {
                 "Content-Type": "application/json",
             },
-            withCredentials: true,
         });
         removeCodeVerifier();
         return response.data;
     }
     catch (error) {
-        throw new BlitzWareAuthError("Failed to exchange code for token", "exchange_failed");
+        throw parseApiError(error, "Failed to exchange code for token", "exchange_failed");
     }
 });
 /**
  * Fetches user information using the provided access token.
  * @param accessToken - The access token.
  * @returns The authenticated user's information.
- * @throws BlitzWareAuthError if the request fails.
+ * @throws BlitzWareAuthError if the request fails. Clears session on unauthorized errors.
  */
 export const fetchUserInfo = (accessToken) => __awaiter(void 0, void 0, void 0, function* () {
     const userInfoUrl = BASE_URL + "userinfo";
@@ -90,12 +118,11 @@ export const fetchUserInfo = (accessToken) => __awaiter(void 0, void 0, void 0, 
             params: {
                 access_token: accessToken,
             },
-            withCredentials: true,
         });
         return response.data;
     }
     catch (error) {
-        throw new BlitzWareAuthError("Failed to fetch user info", "userinfo_failed");
+        throw parseApiError(error, "Failed to fetch user info", "userinfo_failed");
     }
 });
 /**
@@ -118,7 +145,6 @@ export const tryRefreshToken = (clientId) => __awaiter(void 0, void 0, void 0, f
             headers: {
                 "Content-Type": "application/json",
             },
-            withCredentials: true,
         });
         setToken("access_token", response.data.access_token);
         if (response.data.refresh_token) {
@@ -127,9 +153,7 @@ export const tryRefreshToken = (clientId) => __awaiter(void 0, void 0, void 0, f
         return response.data;
     }
     catch (error) {
-        removeToken("access_token");
-        removeToken("refresh_token");
-        throw new BlitzWareAuthError("Failed to refresh token", "refresh_failed");
+        throw parseApiError(error, "Failed to refresh token", "refresh_failed");
     }
 });
 /**
@@ -293,11 +317,10 @@ export const logoutFromService = (clientId) => __awaiter(void 0, void 0, void 0,
             headers: {
                 "Content-Type": "application/json",
             },
-            withCredentials: true,
         });
     }
     catch (error) {
-        throw new BlitzWareAuthError("Failed to log out", "logout_failed");
+        throw parseApiError(error, "Failed to log out", "logout_failed");
     }
 });
 /**
@@ -321,6 +344,6 @@ export const revokeToken = (token, tokenTypeHint, clientId) => __awaiter(void 0,
         });
     }
     catch (error) {
-        throw new BlitzWareAuthError("Failed to revoke token", "revoke_failed");
+        throw parseApiError(error, "Failed to revoke token", "revoke_failed");
     }
 });

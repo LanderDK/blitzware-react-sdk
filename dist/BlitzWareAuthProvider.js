@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { jsx as _jsx } from "react/jsx-runtime";
 import React from "react";
-import { generateAuthUrl, hasAuthParams, isTokenValid, removeToken, setToken, setState, getState, removeState, fetchUserInfo, getToken, exchangeCodeForToken, tryRefreshToken, removeCodeVerifier, generateSecureState, logoutFromService, } from "./utils";
+import { generateAuthUrl, hasAuthParams, isTokenValid, setToken, setState, getState, fetchUserInfo, getToken, exchangeCodeForToken, tryRefreshToken, generateSecureState, logoutFromService, clearSession, } from "./utils";
 const BlitzWareAuthContext = React.createContext({});
 /**
  * Custom hook to access the BlitzWare authentication context.
@@ -101,7 +101,9 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
                     }
                     catch (error) {
                         console.error("Failed to handle authorization code:", error);
+                        clearSession();
                         setIsAuthenticated(false);
+                        setUser(null);
                     }
                     setIsLoading(false);
                     return;
@@ -111,8 +113,17 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
                 if (access_token) {
                     setToken("access_token", access_token);
                     setIsAuthenticated(true);
-                    fetchUserInfo(access_token).then((data) => {
+                    fetchUserInfo(access_token)
+                        .then((data) => {
                         setUser(data);
+                    })
+                        .catch((error) => {
+                        console.error("Failed to fetch user info:", error);
+                        clearSession();
+                        setIsAuthenticated(false);
+                        setUser(null);
+                    })
+                        .finally(() => {
                         setIsLoading(false);
                     });
                 }
@@ -126,23 +137,41 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
             }
             else {
                 if (isTokenValid()) {
-                    fetchUserInfo(getToken("access_token")).then((data) => {
+                    fetchUserInfo(getToken("access_token"))
+                        .then((data) => {
                         setUser(data);
                         setIsAuthenticated(true);
+                    })
+                        .catch((error) => {
+                        console.error("Failed to fetch user info:", error);
+                        clearSession();
+                        setIsAuthenticated(false);
+                        setUser(null);
+                    })
+                        .finally(() => {
+                        setIsLoading(false);
                     });
-                    setIsLoading(false);
                 }
                 else {
                     tryRefreshToken(authParams.clientId)
                         .then((tokenResponse) => {
-                        fetchUserInfo(tokenResponse.access_token).then((data) => {
+                        fetchUserInfo(tokenResponse.access_token)
+                            .then((data) => {
                             setUser(data);
                             setIsAuthenticated(true);
+                        })
+                            .catch((error) => {
+                            console.error("Failed to fetch user info after refresh:", error);
+                            clearSession();
+                            setIsAuthenticated(false);
+                            setUser(null);
                         });
                     })
                         .catch((e) => {
-                        console.error(e);
+                        console.error("Failed to refresh token:", e);
+                        clearSession();
                         setIsAuthenticated(false);
+                        setUser(null);
                     })
                         .finally(() => setIsLoading(false));
                 }
@@ -165,18 +194,22 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
      */
     const logout = React.useCallback(() => __awaiter(void 0, void 0, void 0, function* () {
         setIsLoading(true);
-        yield logoutFromService(authParams.clientId);
+        try {
+            yield logoutFromService(authParams.clientId);
+        }
+        catch (error) {
+            // Log the error but continue with local cleanup
+            console.error("Failed to logout from service:", error);
+        }
         // Always clear local state regardless of service call result
-        removeToken("access_token");
-        removeToken("refresh_token");
-        removeState();
-        removeCodeVerifier();
+        clearSession();
         setIsAuthenticated(false);
         setUser(null);
+        setIsLoading(false);
     }), [authParams.clientId]);
     /**
      * Memoized context value for provider.
      */
     const value = React.useMemo(() => ({ isAuthenticated, user, isLoading, login, logout }), [isAuthenticated, user, isLoading, login, logout]);
-    return (_jsx(BlitzWareAuthContext.Provider, Object.assign({ value: value }, { children: children })));
+    return (_jsx(BlitzWareAuthContext.Provider, { value: value, children: children }));
 };

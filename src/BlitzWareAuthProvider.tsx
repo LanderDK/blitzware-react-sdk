@@ -20,6 +20,7 @@ import {
   removeCodeVerifier,
   generateSecureState,
   logoutFromService,
+  clearSession,
 } from "./utils";
 
 const BlitzWareAuthContext = React.createContext<BlitzWareAuthContextType>(
@@ -138,7 +139,9 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
             );
           } catch (error) {
             console.error("Failed to handle authorization code:", error);
+            clearSession();
             setIsAuthenticated(false);
+            setUser(null);
           }
           setIsLoading(false);
           return;
@@ -149,10 +152,19 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
         if (access_token) {
           setToken("access_token", access_token);
           setIsAuthenticated(true);
-          fetchUserInfo(access_token).then((data) => {
-            setUser(data);
-            setIsLoading(false);
-          });
+          fetchUserInfo(access_token)
+            .then((data) => {
+              setUser(data);
+            })
+            .catch((error) => {
+              console.error("Failed to fetch user info:", error);
+              clearSession();
+              setIsAuthenticated(false);
+              setUser(null);
+            })
+            .finally(() => {
+              setIsLoading(false);
+            });
         } else {
           setIsAuthenticated(false);
           setIsLoading(false);
@@ -162,22 +174,43 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
         if (refresh_token) setToken("refresh_token", refresh_token);
       } else {
         if (isTokenValid()) {
-          fetchUserInfo(getToken("access_token") as string).then((data) => {
-            setUser(data);
-            setIsAuthenticated(true);
-          });
-          setIsLoading(false);
+          fetchUserInfo(getToken("access_token") as string)
+            .then((data) => {
+              setUser(data);
+              setIsAuthenticated(true);
+            })
+            .catch((error) => {
+              console.error("Failed to fetch user info:", error);
+              clearSession();
+              setIsAuthenticated(false);
+              setUser(null);
+            })
+            .finally(() => {
+              setIsLoading(false);
+            });
         } else {
           tryRefreshToken(authParams.clientId)
             .then((tokenResponse) => {
-              fetchUserInfo(tokenResponse.access_token).then((data) => {
-                setUser(data);
-                setIsAuthenticated(true);
-              });
+              fetchUserInfo(tokenResponse.access_token)
+                .then((data) => {
+                  setUser(data);
+                  setIsAuthenticated(true);
+                })
+                .catch((error) => {
+                  console.error(
+                    "Failed to fetch user info after refresh:",
+                    error
+                  );
+                  clearSession();
+                  setIsAuthenticated(false);
+                  setUser(null);
+                });
             })
             .catch((e) => {
-              console.error(e);
+              console.error("Failed to refresh token:", e);
+              clearSession();
               setIsAuthenticated(false);
+              setUser(null);
             })
             .finally(() => setIsLoading(false));
         }
@@ -204,15 +237,18 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
   const logout = React.useCallback(async () => {
     setIsLoading(true);
 
-    await logoutFromService(authParams.clientId);
+    try {
+      await logoutFromService(authParams.clientId);
+    } catch (error) {
+      // Log the error but continue with local cleanup
+      console.error("Failed to logout from service:", error);
+    }
 
     // Always clear local state regardless of service call result
-    removeToken("access_token");
-    removeToken("refresh_token");
-    removeState();
-    removeCodeVerifier();
+    clearSession();
     setIsAuthenticated(false);
     setUser(null);
+    setIsLoading(false);
   }, [authParams.clientId]);
 
   /**
