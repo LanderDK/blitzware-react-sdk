@@ -14,6 +14,14 @@ const TOKEN_RE = /[?&]access_token=[^&]+/;
 const CODE_RE = /[?&]code=[^&]+/;
 const STATE_RE = /[?&]state=[^&]+/;
 const BASE_URL = "https://auth.blitzware.xyz/api/auth/";
+// Configure axios instance with credentials for session support
+const apiClient = axios.create({
+    baseURL: BASE_URL,
+    withCredentials: true, // Include session cookies in all requests
+    headers: {
+        "Content-Type": "application/json",
+    },
+});
 /**
  * Parses an API error response and creates a BlitzWareAuthError.
  * @param error - The axios error or generic error.
@@ -85,18 +93,13 @@ const exchangeCodeForToken = (code, clientId, redirectUri) => __awaiter(void 0, 
     const codeVerifier = getCodeVerifier();
     if (!codeVerifier)
         throw new BlitzWareAuthError("Missing PKCE code_verifier", "missing_code_verifier");
-    const tokenUrl = BASE_URL + "token";
     try {
-        const response = yield axios.post(tokenUrl, {
+        const response = yield apiClient.post("token", {
             grant_type: "authorization_code",
             code,
             client_id: clientId,
             redirect_uri: redirectUri,
             code_verifier: codeVerifier,
-        }, {
-            headers: {
-                "Content-Type": "application/json",
-            },
         });
         removeCodeVerifier();
         return response.data;
@@ -124,9 +127,8 @@ const fetchUserInfo = (clientId, clientSecret) => __awaiter(void 0, void 0, void
     if (!accessToken) {
         throw new BlitzWareAuthError("No access token available", "no_access_token");
     }
-    const userInfoUrl = BASE_URL + "userinfo";
     try {
-        const response = yield axios.get(userInfoUrl, {
+        const response = yield apiClient.get("userinfo", {
             params: {
                 access_token: accessToken,
             },
@@ -154,16 +156,11 @@ const tryRefreshToken = (clientId, clientSecret) => __awaiter(void 0, void 0, vo
     const refreshToken = getToken("refresh_token");
     if (!refreshToken)
         throw new BlitzWareAuthError("No refresh token available", "no_refresh_token");
-    const tokenUrl = BASE_URL + "token";
     try {
-        const response = yield axios.post(tokenUrl, {
+        const response = yield apiClient.post("token", {
             grant_type: "refresh_token",
             refresh_token: refreshToken,
             client_id: clientId,
-        }, {
-            headers: {
-                "Content-Type": "application/json",
-            },
         });
         setToken("access_token", response.data.access_token);
         if (response.data.refresh_token) {
@@ -372,13 +369,8 @@ const generateSecureState = () => {
  * @throws BlitzWareAuthError if logout fails.
  */
 const logoutFromService = (clientId) => __awaiter(void 0, void 0, void 0, function* () {
-    const logoutUrl = BASE_URL + "logout";
     try {
-        yield axios.post(logoutUrl, { client_id: clientId }, {
-            headers: {
-                "Content-Type": "application/json",
-            },
-        });
+        yield apiClient.post("logout", { client_id: clientId });
     }
     catch (error) {
         throw parseApiError(error, "Failed to log out", "logout_failed");
@@ -395,7 +387,6 @@ const logoutFromService = (clientId) => __awaiter(void 0, void 0, void 0, functi
  * @throws BlitzWareAuthError if introspection fails.
  */
 const introspectToken = (token, tokenTypeHint, clientId, clientSecret) => __awaiter(void 0, void 0, void 0, function* () {
-    const introspectUrl = BASE_URL + "introspect";
     try {
         const requestBody = {
             token,
@@ -406,11 +397,7 @@ const introspectToken = (token, tokenTypeHint, clientId, clientSecret) => __awai
         if (clientSecret) {
             requestBody.client_secret = clientSecret;
         }
-        const response = yield axios.post(introspectUrl, requestBody, {
-            headers: {
-                "Content-Type": "application/json",
-            },
-        });
+        const response = yield apiClient.post("introspect", requestBody);
         return response.data;
     }
     catch (error) {
@@ -426,16 +413,11 @@ const introspectToken = (token, tokenTypeHint, clientId, clientSecret) => __awai
  * @throws BlitzWareAuthError if revocation fails.
  */
 const revokeToken = (token, tokenTypeHint, clientId) => __awaiter(void 0, void 0, void 0, function* () {
-    const revokeUrl = BASE_URL + "revoke";
     try {
-        yield axios.post(revokeUrl, {
+        yield apiClient.post("revoke", {
             token,
             token_type_hint: tokenTypeHint,
             client_id: clientId,
-        }, {
-            headers: {
-                "Content-Type": "application/json",
-            },
         });
     }
     catch (error) {
