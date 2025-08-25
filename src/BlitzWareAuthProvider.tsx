@@ -8,16 +8,12 @@ import {
   generateAuthUrl,
   hasAuthParams,
   isTokenValid,
-  removeToken,
   setToken,
   setState,
   getState,
-  removeState,
   fetchUserInfo,
-  getToken,
   exchangeCodeForToken,
   tryRefreshToken,
-  removeCodeVerifier,
   generateSecureState,
   logoutFromService,
   clearSession,
@@ -127,7 +123,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
               setToken("refresh_token", tokenResponse.refresh_token);
             }
 
-            const userData = await fetchUserInfo(tokenResponse.access_token);
+            const userData = await fetchUserInfo(authParams.clientId);
             setUser(userData);
             setIsAuthenticated(true);
 
@@ -152,7 +148,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
         if (access_token) {
           setToken("access_token", access_token);
           setIsAuthenticated(true);
-          fetchUserInfo(access_token)
+          fetchUserInfo(authParams.clientId)
             .then((data) => {
               setUser(data);
             })
@@ -174,7 +170,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
         if (refresh_token) setToken("refresh_token", refresh_token);
       } else {
         if (isTokenValid()) {
-          fetchUserInfo(getToken("access_token") as string)
+          fetchUserInfo(authParams.clientId)
             .then((data) => {
               setUser(data);
               setIsAuthenticated(true);
@@ -191,28 +187,26 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
         } else {
           tryRefreshToken(authParams.clientId)
             .then((tokenResponse) => {
-              fetchUserInfo(tokenResponse.access_token)
-                .then((data) => {
-                  setUser(data);
-                  setIsAuthenticated(true);
-                })
-                .catch((error) => {
-                  console.error(
-                    "Failed to fetch user info after refresh:",
-                    error
-                  );
-                  clearSession();
-                  setIsAuthenticated(false);
-                  setUser(null);
-                });
+              setToken("access_token", tokenResponse.access_token);
+              if (tokenResponse.refresh_token) {
+                setToken("refresh_token", tokenResponse.refresh_token);
+              }
+              
+              return fetchUserInfo(authParams.clientId);
             })
-            .catch((e) => {
-              console.error("Failed to refresh token:", e);
+            .then((data) => {
+              setUser(data);
+              setIsAuthenticated(true);
+            })
+            .catch((error) => {
+              console.error("Failed to refresh token or fetch user info:", error);
               clearSession();
               setIsAuthenticated(false);
               setUser(null);
             })
-            .finally(() => setIsLoading(false));
+            .finally(() => {
+              setIsLoading(false);
+            });
         }
       }
     };
@@ -255,7 +249,13 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
    * Memoized context value for provider.
    */
   const value = React.useMemo(
-    () => ({ isAuthenticated, user, isLoading, login, logout }),
+    () => ({
+      isAuthenticated,
+      user,
+      isLoading,
+      login,
+      logout,
+    }),
     [isAuthenticated, user, isLoading, login, logout]
   );
 

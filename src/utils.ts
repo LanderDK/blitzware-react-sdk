@@ -2,6 +2,7 @@ import {
   BlitzWareAuthParams,
   BlitzWareAuthUser,
   BlitzWareAuthError,
+  TokenIntrospectionResponse,
 } from "./types";
 import { Buffer } from "buffer";
 import axios from "axios";
@@ -44,7 +45,7 @@ const parseApiError = (
 /**
  * Clears the current session by removing all stored tokens and state.
  */
-export const clearSession = (): void => {
+const clearSession = (): void => {
   removeToken("access_token");
   removeToken("refresh_token");
   removeState();
@@ -56,7 +57,7 @@ export const clearSession = (): void => {
  * @param searchParams - The URL search string to check (defaults to window.location.search).
  * @returns True if authentication parameters are present, false otherwise.
  */
-export const hasAuthParams = (searchParams = window.location.search): boolean =>
+const hasAuthParams = (searchParams = window.location.search): boolean =>
   (TOKEN_RE.test(searchParams) || CODE_RE.test(searchParams)) &&
   STATE_RE.test(searchParams);
 
@@ -66,7 +67,7 @@ export const hasAuthParams = (searchParams = window.location.search): boolean =>
  * @param state - The state string to include in the request.
  * @returns The full authorization URL.
  */
-export const generateAuthUrl = async (
+const generateAuthUrl = async (
   { responseType = "code", clientId, redirectUri }: BlitzWareAuthParams,
   state: string
 ): Promise<string> => {
@@ -97,7 +98,7 @@ export const generateAuthUrl = async (
  * @returns An object containing the access token and optionally a refresh token.
  * @throws BlitzWareAuthError if the code_verifier is missing or the exchange fails.
  */
-export const exchangeCodeForToken = async (
+const exchangeCodeForToken = async (
   code: string,
   clientId: string,
   redirectUri: string
@@ -139,14 +140,36 @@ export const exchangeCodeForToken = async (
 };
 
 /**
- * Fetches user information using the provided access token.
- * @param accessToken - The access token.
+ * Fetches user information using the stored access token with validation.
+ * Validates the token with the authorization server before fetching user info.
+ * @param clientId - The client ID.
+ * @param clientSecret - The client secret (optional for public clients).
  * @returns The authenticated user's information.
- * @throws BlitzWareAuthError if the request fails.
+ * @throws BlitzWareAuthError if the token is invalid or request fails.
  */
-export const fetchUserInfo = async (
-  accessToken: string
+const fetchUserInfo = async (
+  clientId: string,
+  clientSecret?: string
 ): Promise<BlitzWareAuthUser> => {
+  // First validate the token using introspection
+  const tokenValidation = await validateAccessToken(clientId, clientSecret);
+
+  if (!tokenValidation.active) {
+    throw new BlitzWareAuthError(
+      "Access token is not active or has expired",
+      "token_inactive"
+    );
+  }
+
+  // If token is valid, fetch user info
+  const accessToken = getToken("access_token");
+  if (!accessToken) {
+    throw new BlitzWareAuthError(
+      "No access token available",
+      "no_access_token"
+    );
+  }
+
   const userInfoUrl = BASE_URL + "userinfo";
   try {
     const response = await axios.get(userInfoUrl, {
@@ -161,14 +184,27 @@ export const fetchUserInfo = async (
 };
 
 /**
- * Attempts to refresh the access token using the stored refresh token.
+ * Attempts to refresh the access token using the stored refresh token with validation.
+ * Validates the refresh token before attempting to use it.
  * @param clientId - The client ID.
+ * @param clientSecret - The client secret (optional for public clients).
  * @returns An object containing the new access token and optionally a new refresh token.
- * @throws BlitzWareAuthError if no refresh token is available or the refresh fails.
+ * @throws BlitzWareAuthError if refresh token is invalid or refresh fails.
  */
-export const tryRefreshToken = async (
-  clientId: string
+const tryRefreshToken = async (
+  clientId: string,
+  clientSecret?: string
 ): Promise<{ access_token: string; refresh_token?: string }> => {
+  // First validate the refresh token using introspection
+  const tokenValidation = await validateRefreshToken(clientId, clientSecret);
+
+  if (!tokenValidation.active) {
+    throw new BlitzWareAuthError(
+      "Refresh token is not active or has expired",
+      "refresh_token_inactive"
+    );
+  }
+
   const refreshToken = getToken("refresh_token");
   if (!refreshToken)
     throw new BlitzWareAuthError(
@@ -209,10 +245,7 @@ export const tryRefreshToken = async (
  * @param type - The type of token ("access_token" or "refresh_token").
  * @param token - The token value.
  */
-export const setToken = (
-  type: "access_token" | "refresh_token",
-  token: string
-) => {
+const setToken = (type: "access_token" | "refresh_token", token: string) => {
   localStorage.setItem(type, token);
 };
 
@@ -221,9 +254,7 @@ export const setToken = (
  * @param type - The type of token ("access_token" or "refresh_token").
  * @returns The token value or null if not found.
  */
-export const getToken = (
-  type: "access_token" | "refresh_token"
-): string | null => {
+const getToken = (type: "access_token" | "refresh_token"): string | null => {
   return localStorage.getItem(type);
 };
 
@@ -231,7 +262,7 @@ export const getToken = (
  * Removes an access or refresh token from localStorage.
  * @param type - The type of token ("access_token" or "refresh_token").
  */
-export const removeToken = (type: "access_token" | "refresh_token") => {
+const removeToken = (type: "access_token" | "refresh_token") => {
   localStorage.removeItem(type);
 };
 
@@ -266,9 +297,10 @@ const parseExp = (exp: number | string) => {
 
 /**
  * Checks if the stored access token is valid (not expired).
- * @returns True if the token is valid, false otherwise.
+ * This is a quick local check based on JWT expiration.
+ * @returns True if the token appears valid locally, false otherwise.
  */
-export const isTokenValid = (): boolean => {
+const isTokenValid = (): boolean => {
   const token = getToken("access_token");
   if (!token) return false;
 
@@ -279,10 +311,64 @@ export const isTokenValid = (): boolean => {
 };
 
 /**
+ * Validates an access token by introspecting it with the authorization server.
+ * This provides authoritative validation from the server.
+ * @param clientId - The client ID.
+ * @param clientSecret - The client secret (optional for public clients).
+ * @returns Promise that resolves to introspection result.
+ * @throws BlitzWareAuthError if validation fails.
+ */
+const validateAccessToken = async (
+  clientId: string,
+  clientSecret?: string
+): Promise<TokenIntrospectionResponse> => {
+  const token = getToken("access_token");
+  if (!token) {
+    return { active: false };
+  }
+
+  try {
+    return await introspectToken(token, "access_token", clientId, clientSecret);
+  } catch (error) {
+    // If introspection fails, token is considered invalid
+    return { active: false };
+  }
+};
+
+/**
+ * Validates a refresh token by introspecting it with the authorization server.
+ * @param clientId - The client ID.
+ * @param clientSecret - The client secret (optional for public clients).
+ * @returns Promise that resolves to introspection result.
+ * @throws BlitzWareAuthError if validation fails.
+ */
+const validateRefreshToken = async (
+  clientId: string,
+  clientSecret?: string
+): Promise<TokenIntrospectionResponse> => {
+  const token = getToken("refresh_token");
+  if (!token) {
+    return { active: false };
+  }
+
+  try {
+    return await introspectToken(
+      token,
+      "refresh_token",
+      clientId,
+      clientSecret
+    );
+  } catch (error) {
+    // If introspection fails, token is considered invalid
+    return { active: false };
+  }
+};
+
+/**
  * Stores the OAuth state value in localStorage.
  * @param state - The state string.
  */
-export const setState = (state: string) => {
+const setState = (state: string) => {
   localStorage.setItem("state", state);
 };
 
@@ -290,14 +376,14 @@ export const setState = (state: string) => {
  * Retrieves the OAuth state value from localStorage.
  * @returns The state string or null if not found.
  */
-export const getState = () => {
+const getState = () => {
   return localStorage.getItem("state");
 };
 
 /**
  * Removes the OAuth state value from localStorage.
  */
-export const removeState = () => {
+const removeState = () => {
   localStorage.removeItem("state");
 };
 
@@ -348,7 +434,7 @@ const getCodeVerifier = (): string | null => {
 /**
  * Removes the PKCE code_verifier from localStorage.
  */
-export const removeCodeVerifier = () => {
+const removeCodeVerifier = () => {
   localStorage.removeItem("pkce_code_verifier");
 };
 
@@ -356,7 +442,7 @@ export const removeCodeVerifier = () => {
  * Generates a cryptographically secure random state string.
  * @returns A base64url-encoded random string.
  */
-export const generateSecureState = (): string => {
+const generateSecureState = (): string => {
   const array = new Uint8Array(32); // 256 bits of entropy
   crypto.getRandomValues(array);
   return btoa(String.fromCharCode(...array))
@@ -372,7 +458,7 @@ export const generateSecureState = (): string => {
  * @returns Promise that resolves when logout is complete.
  * @throws BlitzWareAuthError if logout fails.
  */
-export const logoutFromService = async (clientId: string): Promise<void> => {
+const logoutFromService = async (clientId: string): Promise<void> => {
   const logoutUrl = BASE_URL + "logout";
 
   try {
@@ -391,13 +477,65 @@ export const logoutFromService = async (clientId: string): Promise<void> => {
 };
 
 /**
+ * Introspects a token to check its validity and get metadata.
+ * Implements RFC 7662 OAuth2 Token Introspection.
+ * @param token - The token to introspect.
+ * @param tokenTypeHint - The type of token being introspected.
+ * @param clientId - The client ID.
+ * @param clientSecret - The client secret (optional for public clients).
+ * @returns Token introspection response.
+ * @throws BlitzWareAuthError if introspection fails.
+ */
+const introspectToken = async (
+  token: string,
+  tokenTypeHint: "access_token" | "refresh_token",
+  clientId: string,
+  clientSecret?: string
+): Promise<TokenIntrospectionResponse> => {
+  const introspectUrl = BASE_URL + "introspect";
+
+  try {
+    const requestBody: {
+      token: string;
+      token_type_hint: string;
+      client_id: string;
+      client_secret?: string;
+    } = {
+      token,
+      token_type_hint: tokenTypeHint,
+      client_id: clientId,
+    };
+
+    // Add client secret if provided (for confidential clients)
+    if (clientSecret) {
+      requestBody.client_secret = clientSecret;
+    }
+
+    const response = await axios.post(introspectUrl, requestBody, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    throw parseApiError(
+      error,
+      "Failed to introspect token",
+      "introspect_failed"
+    );
+  }
+};
+
+// NOT USED YET
+/**
  * Revokes a specific token.
  * @param token - The token to revoke.
  * @param tokenTypeHint - The type of token being revoked.
  * @param clientId - The client ID.
  * @throws BlitzWareAuthError if revocation fails.
  */
-export const revokeToken = async (
+const revokeToken = async (
   token: string,
   tokenTypeHint: "access_token" | "refresh_token",
   clientId: string
@@ -421,4 +559,19 @@ export const revokeToken = async (
   } catch (error) {
     throw parseApiError(error, "Failed to revoke token", "revoke_failed");
   }
+};
+
+export {
+  clearSession,
+  hasAuthParams,
+  generateAuthUrl,
+  exchangeCodeForToken,
+  fetchUserInfo,
+  tryRefreshToken,
+  setToken,
+  isTokenValid,
+  setState,
+  getState,
+  generateSecureState,
+  logoutFromService,
 };
