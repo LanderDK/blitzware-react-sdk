@@ -12,6 +12,15 @@ const CODE_RE = /[?&]code=[^&]+/;
 const STATE_RE = /[?&]state=[^&]+/;
 const BASE_URL = "https://auth.blitzware.xyz/api/auth/";
 
+// Configure axios instance with credentials for session support
+const apiClient = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true, // Include session cookies in all requests
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
 /**
  * Parses an API error response and creates a BlitzWareAuthError.
  * @param error - The axios error or generic error.
@@ -110,24 +119,14 @@ const exchangeCodeForToken = async (
       "missing_code_verifier"
     );
 
-  const tokenUrl = BASE_URL + "token";
-
   try {
-    const response = await axios.post(
-      tokenUrl,
-      {
-        grant_type: "authorization_code",
-        code,
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        code_verifier: codeVerifier,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const response = await apiClient.post("token", {
+      grant_type: "authorization_code",
+      code,
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+    });
     removeCodeVerifier();
     return response.data;
   } catch (error) {
@@ -170,9 +169,8 @@ const fetchUserInfo = async (
     );
   }
 
-  const userInfoUrl = BASE_URL + "userinfo";
   try {
-    const response = await axios.get(userInfoUrl, {
+    const response = await apiClient.get("userinfo", {
       params: {
         access_token: accessToken,
       },
@@ -212,22 +210,12 @@ const tryRefreshToken = async (
       "no_refresh_token"
     );
 
-  const tokenUrl = BASE_URL + "token";
-
   try {
-    const response = await axios.post(
-      tokenUrl,
-      {
-        grant_type: "refresh_token",
-        refresh_token: refreshToken,
-        client_id: clientId,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const response = await apiClient.post("token", {
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: clientId,
+    });
 
     setToken("access_token", response.data.access_token);
     if (response.data.refresh_token) {
@@ -459,18 +447,8 @@ const generateSecureState = (): string => {
  * @throws BlitzWareAuthError if logout fails.
  */
 const logoutFromService = async (clientId: string): Promise<void> => {
-  const logoutUrl = BASE_URL + "logout";
-
   try {
-    await axios.post(
-      logoutUrl,
-      { client_id: clientId },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    await apiClient.post("logout", { client_id: clientId });
   } catch (error) {
     throw parseApiError(error, "Failed to log out", "logout_failed");
   }
@@ -492,8 +470,6 @@ const introspectToken = async (
   clientId: string,
   clientSecret?: string
 ): Promise<TokenIntrospectionResponse> => {
-  const introspectUrl = BASE_URL + "introspect";
-
   try {
     const requestBody: {
       token: string;
@@ -511,11 +487,7 @@ const introspectToken = async (
       requestBody.client_secret = clientSecret;
     }
 
-    const response = await axios.post(introspectUrl, requestBody, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    const response = await apiClient.post("introspect", requestBody);
 
     return response.data;
   } catch (error) {
@@ -540,22 +512,12 @@ const revokeToken = async (
   tokenTypeHint: "access_token" | "refresh_token",
   clientId: string
 ): Promise<void> => {
-  const revokeUrl = BASE_URL + "revoke";
-
   try {
-    await axios.post(
-      revokeUrl,
-      {
-        token,
-        token_type_hint: tokenTypeHint,
-        client_id: clientId,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    await apiClient.post("revoke", {
+      token,
+      token_type_hint: tokenTypeHint,
+      client_id: clientId,
+    });
   } catch (error) {
     throw parseApiError(error, "Failed to revoke token", "revoke_failed");
   }
