@@ -13,6 +13,8 @@ export interface BlitzWareAuthProviderParams {
 
 export interface ProtectedRouteProps {
   component: React.ComponentType<any>;
+  role?: string | string[]; // Single role or array of roles required
+  requireAllRoles?: boolean; // If true, user must have ALL roles (AND logic), if false, user needs ANY role (OR logic)
 }
 
 export interface BlitzWareAuthUser {

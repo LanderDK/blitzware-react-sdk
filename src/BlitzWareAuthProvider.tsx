@@ -75,6 +75,31 @@ export const useLogout = () => {
 };
 
 /**
+ * Custom hook to check if the user has the required role(s).
+ * @param role - Single role or array of roles to check
+ * @param requireAllRoles - If true, user must have ALL roles (AND logic), if false, user needs ANY role (OR logic)
+ * @returns True if user has the required role(s), false otherwise.
+ */
+export const useHasRole = (role?: string | string[], requireAllRoles: boolean = false) => {
+  const user = useAuthUser();
+  
+  if (!user || !user.roles || !role) {
+    return false;
+  }
+
+  const userRoles = user.roles;
+  const requiredRoles = Array.isArray(role) ? role : [role];
+
+  if (requireAllRoles) {
+    // User must have ALL required roles (AND logic)
+    return requiredRoles.every(requiredRole => userRoles.includes(requiredRole));
+  } else {
+    // User must have at least ONE required role (OR logic)
+    return requiredRoles.some(requiredRole => userRoles.includes(requiredRole));
+  }
+};
+
+/**
  * BlitzWareAuthProvider component that manages authentication state and provides context.
  * @param children - The child components to render.
  * @param authParams - The authentication parameters.

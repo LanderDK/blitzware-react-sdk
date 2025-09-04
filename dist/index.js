@@ -1,2 +1,2 @@
-export { BlitzWareAuthProvider, useLogin, useLogout, useAuthUser, useIsAuthenticated, useAuthLoading, } from "./BlitzWareAuthProvider";
+export { BlitzWareAuthProvider, useLogin, useLogout, useAuthUser, useIsAuthenticated, useAuthLoading, useHasRole, } from "./BlitzWareAuthProvider";
 export { ProtectedRoute } from "./ProtectedRoute";

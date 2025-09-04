@@ -26,6 +26,13 @@ export declare const useLogin: () => () => void;
  */
 export declare const useLogout: () => () => Promise<void>;
 /**
+ * Custom hook to check if the user has the required role(s).
+ * @param role - Single role or array of roles to check
+ * @param requireAllRoles - If true, user must have ALL roles (AND logic), if false, user needs ANY role (OR logic)
+ * @returns True if user has the required role(s), false otherwise.
+ */
+export declare const useHasRole: (role?: string | string[], requireAllRoles?: boolean) => boolean;
+/**
  * BlitzWareAuthProvider component that manages authentication state and provides context.
  * @param children - The child components to render.
  * @param authParams - The authentication parameters.

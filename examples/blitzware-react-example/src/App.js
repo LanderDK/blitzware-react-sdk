@@ -12,7 +12,13 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route
           path="/dashboard"
-          element={<ProtectedRoute component={Dashboard} />}
+          element={
+            <ProtectedRoute
+              role={"admin"}
+              requireAllRoles={true}
+              component={Dashboard}
+            />
+          }
         />
       </Routes>
     </>

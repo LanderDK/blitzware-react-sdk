@@ -10,6 +10,8 @@ export interface BlitzWareAuthProviderParams {
 }
 export interface ProtectedRouteProps {
     component: React.ComponentType<any>;
+    role?: string | string[];
+    requireAllRoles?: boolean;
 }
 export interface BlitzWareAuthUser {
     id: string;
