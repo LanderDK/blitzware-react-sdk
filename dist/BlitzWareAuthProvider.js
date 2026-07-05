@@ -115,7 +115,7 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
                         if (tokenResponse.refresh_token) {
                             setToken("refresh_token", tokenResponse.refresh_token);
                         }
-                        const userData = yield fetchUserInfo(authParams.clientId);
+                        const userData = yield fetchUserInfo();
                         setUser(userData);
                         setIsAuthenticated(true);
                         // Clean up URL
@@ -135,7 +135,7 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
                 if (access_token) {
                     setToken("access_token", access_token);
                     setIsAuthenticated(true);
-                    fetchUserInfo(authParams.clientId)
+                    fetchUserInfo()
                         .then((data) => {
                         setUser(data);
                     })
@@ -159,7 +159,7 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
             }
             else {
                 if (isTokenValid()) {
-                    fetchUserInfo(authParams.clientId)
+                    fetchUserInfo()
                         .then((data) => {
                         setUser(data);
                         setIsAuthenticated(true);
@@ -181,7 +181,7 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
                         if (tokenResponse.refresh_token) {
                             setToken("refresh_token", tokenResponse.refresh_token);
                         }
-                        return fetchUserInfo(authParams.clientId);
+                        return fetchUserInfo();
                     })
                         .then((data) => {
                         setUser(data);

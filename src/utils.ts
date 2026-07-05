@@ -139,28 +139,13 @@ const exchangeCodeForToken = async (
 };
 
 /**
- * Fetches user information using the stored access token with validation.
- * Validates the token with the authorization server before fetching user info.
- * @param clientId - The client ID.
- * @param clientSecret - The client secret (optional for public clients).
+ * Fetches user information using the stored access token.
+ * The userinfo endpoint validates the bearer token and returns 401 when the
+ * token is invalid, expired, revoked, malformed, or disabled.
  * @returns The authenticated user's information.
- * @throws BlitzWareAuthError if the token is invalid or request fails.
+ * @throws BlitzWareAuthError if the token is missing, invalid, or request fails.
  */
-const fetchUserInfo = async (
-  clientId: string,
-  clientSecret?: string
-): Promise<BlitzWareAuthUser> => {
-  // First validate the token using introspection
-  const tokenValidation = await validateAccessToken(clientId, clientSecret);
-
-  if (!tokenValidation.active) {
-    throw new BlitzWareAuthError(
-      "Access token is not active or has expired",
-      "token_inactive"
-    );
-  }
-
-  // If token is valid, fetch user info
+const fetchUserInfo = async (): Promise<BlitzWareAuthUser> => {
   const accessToken = getToken("access_token");
   if (!accessToken) {
     throw new BlitzWareAuthError(
@@ -171,8 +156,8 @@ const fetchUserInfo = async (
 
   try {
     const response = await apiClient.get("userinfo", {
-      params: {
-        access_token: accessToken,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
       },
     });
     return response.data;
@@ -321,30 +306,6 @@ const isTokenValid = (): boolean => {
   return expiration > new Date();
 };
 
-/**
- * Validates an access token by introspecting it with the authorization server.
- * This provides authoritative validation from the server.
- * @param clientId - The client ID.
- * @param clientSecret - The client secret (optional for public clients).
- * @returns Promise that resolves to introspection result.
- * @throws BlitzWareAuthError if validation fails.
- */
-const validateAccessToken = async (
-  clientId: string,
-  clientSecret?: string
-): Promise<TokenIntrospectionResponse> => {
-  const token = getToken("access_token");
-  if (!token) {
-    return { active: false };
-  }
-
-  try {
-    return await introspectToken(token, "access_token", clientId, clientSecret);
-  } catch (error) {
-    // If introspection fails, token is considered invalid
-    return { active: false };
-  }
-};
 
 /**
  * Validates a refresh token by introspecting it with the authorization server.

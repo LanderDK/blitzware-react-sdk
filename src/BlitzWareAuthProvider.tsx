@@ -148,7 +148,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
               setToken("refresh_token", tokenResponse.refresh_token);
             }
 
-            const userData = await fetchUserInfo(authParams.clientId);
+            const userData = await fetchUserInfo();
             setUser(userData);
             setIsAuthenticated(true);
 
@@ -173,7 +173,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
         if (access_token) {
           setToken("access_token", access_token);
           setIsAuthenticated(true);
-          fetchUserInfo(authParams.clientId)
+          fetchUserInfo()
             .then((data) => {
               setUser(data);
             })
@@ -195,7 +195,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
         if (refresh_token) setToken("refresh_token", refresh_token);
       } else {
         if (isTokenValid()) {
-          fetchUserInfo(authParams.clientId)
+          fetchUserInfo()
             .then((data) => {
               setUser(data);
               setIsAuthenticated(true);
@@ -217,7 +217,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
                 setToken("refresh_token", tokenResponse.refresh_token);
               }
               
-              return fetchUserInfo(authParams.clientId);
+              return fetchUserInfo();
             })
             .then((data) => {
               setUser(data);

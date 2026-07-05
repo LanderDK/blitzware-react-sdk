@@ -13,11 +13,13 @@ Object.defineProperty(window, 'atob', {
 });
 
 // Mock axios
+const mockApiClient = {
+  post: jest.fn(),
+  get: jest.fn(),
+};
+
 const mockAxios = {
-  create: jest.fn(() => ({
-    post: jest.fn(),
-    get: jest.fn(),
-  })),
+  create: jest.fn(() => mockApiClient),
   post: jest.fn(),
   get: jest.fn(),
 };
@@ -33,6 +35,7 @@ import {
   setState,
   getState,
   clearSession,
+  fetchUserInfo,
 } from '../src/utils';
 
 describe('Utility Functions', () => {
@@ -186,6 +189,32 @@ describe('Utility Functions', () => {
         expect(window.localStorage.removeItem).toHaveBeenCalledWith('state');
         expect(window.localStorage.removeItem).toHaveBeenCalledWith('pkce_code_verifier');
       });
+    });
+  });
+
+  describe('fetchUserInfo', () => {
+    it('fetches userinfo with a bearer token', async () => {
+      mockApiClient.get.mockResolvedValue({
+        data: {
+          id: 'user-id',
+          username: 'alice',
+          email: 'alice@example.com',
+          roles: [],
+        },
+      });
+      (window.localStorage.getItem as jest.Mock).mockImplementation((key) => {
+        if (key === 'access_token') return 'access-token';
+        return null;
+      });
+
+      const user = await fetchUserInfo();
+
+      expect(mockApiClient.get).toHaveBeenCalledWith('userinfo', {
+        headers: {
+          Authorization: 'Bearer access-token',
+        },
+      });
+      expect(user.email).toBe('alice@example.com');
     });
   });
 

@@ -29,14 +29,13 @@ declare const exchangeCodeForToken: (code: string, clientId: string, redirectUri
     refresh_token?: string;
 }>;
 /**
- * Fetches user information using the stored access token with validation.
- * Validates the token with the authorization server before fetching user info.
- * @param clientId - The client ID.
- * @param clientSecret - The client secret (optional for public clients).
+ * Fetches user information using the stored access token.
+ * The userinfo endpoint validates the bearer token and returns 401 when the
+ * token is invalid, expired, revoked, malformed, or disabled.
  * @returns The authenticated user's information.
- * @throws BlitzWareAuthError if the token is invalid or request fails.
+ * @throws BlitzWareAuthError if the token is missing, invalid, or request fails.
  */
-declare const fetchUserInfo: (clientId: string, clientSecret?: string) => Promise<BlitzWareAuthUser>;
+declare const fetchUserInfo: () => Promise<BlitzWareAuthUser>;
 /**
  * Attempts to refresh the access token using the stored refresh token with validation.
  * Validates the refresh token before attempting to use it.
