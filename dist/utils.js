@@ -13,10 +13,23 @@ import axios from "axios";
 const TOKEN_RE = /[?&]access_token=[^&]+/;
 const CODE_RE = /[?&]code=[^&]+/;
 const STATE_RE = /[?&]state=[^&]+/;
-const BASE_URL = "https://auth.blitzware.xyz/api/auth/";
-// Configure axios instance with credentials for session support
-const apiClient = axios.create({
-    baseURL: BASE_URL,
+const DEFAULT_AUTH_BASE_URL = "https://auth.blitzware.xyz/api/auth/";
+const normalizeAuthBaseUrl = (authBaseUrl) => {
+    const value = authBaseUrl || DEFAULT_AUTH_BASE_URL;
+    try {
+        const url = new URL(value);
+        url.pathname = url.pathname.replace(/\/+$/, "") + "/";
+        url.search = "";
+        url.hash = "";
+        return url.toString();
+    }
+    catch (_a) {
+        throw new BlitzWareAuthError("Invalid authBaseUrl", "invalid_auth_base_url");
+    }
+};
+const buildAuthUrl = (authBaseUrl, path) => `${normalizeAuthBaseUrl(authBaseUrl)}${path.replace(/^\/+/, "")}`;
+const createApiClient = (authBaseUrl) => axios.create({
+    baseURL: normalizeAuthBaseUrl(authBaseUrl),
     withCredentials: true, // Include session cookies in all requests
     headers: {
         "Content-Type": "application/json",
@@ -64,8 +77,8 @@ const hasAuthParams = (searchParams = window.location.search) => (TOKEN_RE.test(
  * @param state - The state string to include in the request.
  * @returns The full authorization URL.
  */
-const generateAuthUrl = (_a, state_1) => __awaiter(void 0, [_a, state_1], void 0, function* ({ responseType = "code", clientId, redirectUri }, state) {
-    const authUrl = BASE_URL + "authorize";
+const generateAuthUrl = (_a, state_1) => __awaiter(void 0, [_a, state_1], void 0, function* ({ responseType = "code", clientId, redirectUri, authBaseUrl, }, state) {
+    const authUrl = buildAuthUrl(authBaseUrl, "authorize");
     const queryParams = new URLSearchParams({
         response_type: responseType,
         client_id: clientId,
@@ -89,11 +102,12 @@ const generateAuthUrl = (_a, state_1) => __awaiter(void 0, [_a, state_1], void 0
  * @returns An object containing the access token and optionally a refresh token.
  * @throws BlitzWareAuthError if the code_verifier is missing or the exchange fails.
  */
-const exchangeCodeForToken = (code, clientId, redirectUri) => __awaiter(void 0, void 0, void 0, function* () {
+const exchangeCodeForToken = (code, clientId, redirectUri, authBaseUrl) => __awaiter(void 0, void 0, void 0, function* () {
     const codeVerifier = getCodeVerifier();
     if (!codeVerifier)
         throw new BlitzWareAuthError("Missing PKCE code_verifier", "missing_code_verifier");
     try {
+        const apiClient = createApiClient(authBaseUrl);
         const response = yield apiClient.post("token", {
             grant_type: "authorization_code",
             code,
@@ -115,12 +129,13 @@ const exchangeCodeForToken = (code, clientId, redirectUri) => __awaiter(void 0, 
  * @returns The authenticated user's information.
  * @throws BlitzWareAuthError if the token is missing, invalid, or request fails.
  */
-const fetchUserInfo = () => __awaiter(void 0, void 0, void 0, function* () {
+const fetchUserInfo = (authBaseUrl) => __awaiter(void 0, void 0, void 0, function* () {
     const accessToken = getToken("access_token");
     if (!accessToken) {
         throw new BlitzWareAuthError("No access token available", "no_access_token");
     }
     try {
+        const apiClient = createApiClient(authBaseUrl);
         const response = yield apiClient.get("userinfo", {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -140,9 +155,9 @@ const fetchUserInfo = () => __awaiter(void 0, void 0, void 0, function* () {
  * @returns An object containing the new access token and optionally a new refresh token.
  * @throws BlitzWareAuthError if refresh token is invalid or refresh fails.
  */
-const tryRefreshToken = (clientId, clientSecret) => __awaiter(void 0, void 0, void 0, function* () {
+const tryRefreshToken = (clientId, clientSecret, authBaseUrl) => __awaiter(void 0, void 0, void 0, function* () {
     // First validate the refresh token using introspection
-    const tokenValidation = yield validateRefreshToken(clientId, clientSecret);
+    const tokenValidation = yield validateRefreshToken(clientId, clientSecret, authBaseUrl);
     if (!tokenValidation.active) {
         throw new BlitzWareAuthError("Refresh token is not active or has expired", "refresh_token_inactive");
     }
@@ -150,6 +165,7 @@ const tryRefreshToken = (clientId, clientSecret) => __awaiter(void 0, void 0, vo
     if (!refreshToken)
         throw new BlitzWareAuthError("No refresh token available", "no_refresh_token");
     try {
+        const apiClient = createApiClient(authBaseUrl);
         const response = yield apiClient.post("token", {
             grant_type: "refresh_token",
             refresh_token: refreshToken,
@@ -265,13 +281,13 @@ const isTokenValid = () => {
  * @returns Promise that resolves to introspection result.
  * @throws BlitzWareAuthError if validation fails.
  */
-const validateRefreshToken = (clientId, clientSecret) => __awaiter(void 0, void 0, void 0, function* () {
+const validateRefreshToken = (clientId, clientSecret, authBaseUrl) => __awaiter(void 0, void 0, void 0, function* () {
     const token = getToken("refresh_token");
     if (!token) {
         return { active: false };
     }
     try {
-        return yield introspectToken(token, "refresh_token", clientId, clientSecret);
+        return yield introspectToken(token, "refresh_token", clientId, clientSecret, authBaseUrl);
     }
     catch (error) {
         // If introspection fails, token is considered invalid
@@ -363,8 +379,9 @@ const generateSecureState = () => {
  * @returns Promise that resolves when logout is complete.
  * @throws BlitzWareAuthError if logout fails.
  */
-const logoutFromService = (clientId) => __awaiter(void 0, void 0, void 0, function* () {
+const logoutFromService = (clientId, authBaseUrl) => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        const apiClient = createApiClient(authBaseUrl);
         yield apiClient.post("logout", { client_id: clientId });
     }
     catch (error) {
@@ -381,7 +398,7 @@ const logoutFromService = (clientId) => __awaiter(void 0, void 0, void 0, functi
  * @returns Token introspection response.
  * @throws BlitzWareAuthError if introspection fails.
  */
-const introspectToken = (token, tokenTypeHint, clientId, clientSecret) => __awaiter(void 0, void 0, void 0, function* () {
+const introspectToken = (token, tokenTypeHint, clientId, clientSecret, authBaseUrl) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const requestBody = {
             token,
@@ -392,6 +409,7 @@ const introspectToken = (token, tokenTypeHint, clientId, clientSecret) => __awai
         if (clientSecret) {
             requestBody.client_secret = clientSecret;
         }
+        const apiClient = createApiClient(authBaseUrl);
         const response = yield apiClient.post("introspect", requestBody);
         return response.data;
     }
@@ -407,8 +425,9 @@ const introspectToken = (token, tokenTypeHint, clientId, clientSecret) => __awai
  * @param clientId - The client ID.
  * @throws BlitzWareAuthError if revocation fails.
  */
-const revokeToken = (token, tokenTypeHint, clientId) => __awaiter(void 0, void 0, void 0, function* () {
+const revokeToken = (token, tokenTypeHint, clientId, authBaseUrl) => __awaiter(void 0, void 0, void 0, function* () {
     try {
+        const apiClient = createApiClient(authBaseUrl);
         yield apiClient.post("revoke", {
             token,
             token_type_hint: tokenTypeHint,
@@ -419,4 +438,4 @@ const revokeToken = (token, tokenTypeHint, clientId) => __awaiter(void 0, void 0
         throw parseApiError(error, "Failed to revoke token", "revoke_failed");
     }
 });
-export { clearSession, hasAuthParams, generateAuthUrl, exchangeCodeForToken, fetchUserInfo, tryRefreshToken, setToken, isTokenValid, setState, getState, generateSecureState, logoutFromService, };
+export { clearSession, hasAuthParams, normalizeAuthBaseUrl, generateAuthUrl, exchangeCodeForToken, fetchUserInfo, tryRefreshToken, setToken, isTokenValid, setState, getState, generateSecureState, logoutFromService, };

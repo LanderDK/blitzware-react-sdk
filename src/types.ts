@@ -4,6 +4,7 @@ export interface BlitzWareAuthParams {
   responseType?: "code" | "token";
   clientId: string;
   redirectUri: string;
+  authBaseUrl?: string;
 }
 
 export interface BlitzWareAuthProviderParams {

@@ -15,6 +15,7 @@ root.render(
           clientId: "your-client-id",
           redirectUri: "your-redirect-uri",
           responseType: "code", // or "token" for implicit flow
+          // authBaseUrl: "https://acme.auth.blitzware.xyz/api/auth/",
         }}
       >
         <App />

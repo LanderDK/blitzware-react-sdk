@@ -140,7 +140,8 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
             const tokenResponse = await exchangeCodeForToken(
               code,
               authParams.clientId,
-              authParams.redirectUri
+              authParams.redirectUri,
+              authParams.authBaseUrl
             );
 
             setToken("access_token", tokenResponse.access_token);
@@ -148,7 +149,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
               setToken("refresh_token", tokenResponse.refresh_token);
             }
 
-            const userData = await fetchUserInfo();
+            const userData = await fetchUserInfo(authParams.authBaseUrl);
             setUser(userData);
             setIsAuthenticated(true);
 
@@ -173,7 +174,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
         if (access_token) {
           setToken("access_token", access_token);
           setIsAuthenticated(true);
-          fetchUserInfo()
+          fetchUserInfo(authParams.authBaseUrl)
             .then((data) => {
               setUser(data);
             })
@@ -195,7 +196,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
         if (refresh_token) setToken("refresh_token", refresh_token);
       } else {
         if (isTokenValid()) {
-          fetchUserInfo()
+          fetchUserInfo(authParams.authBaseUrl)
             .then((data) => {
               setUser(data);
               setIsAuthenticated(true);
@@ -210,14 +211,14 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
               setIsLoading(false);
             });
         } else {
-          tryRefreshToken(authParams.clientId)
+          tryRefreshToken(authParams.clientId, undefined, authParams.authBaseUrl)
             .then((tokenResponse) => {
               setToken("access_token", tokenResponse.access_token);
               if (tokenResponse.refresh_token) {
                 setToken("refresh_token", tokenResponse.refresh_token);
               }
               
-              return fetchUserInfo();
+              return fetchUserInfo(authParams.authBaseUrl);
             })
             .then((data) => {
               setUser(data);
@@ -237,7 +238,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
     };
 
     handleAuthCallback();
-  }, [authParams.clientId, authParams.redirectUri]);
+  }, [authParams.clientId, authParams.redirectUri, authParams.authBaseUrl]);
 
   /**
    * Initiates the login process by redirecting to the authorization URL.
@@ -257,7 +258,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
     setIsLoading(true);
 
     try {
-      await logoutFromService(authParams.clientId);
+      await logoutFromService(authParams.clientId, authParams.authBaseUrl);
     } catch (error) {
       // Log the error but continue with local cleanup
       console.error("Failed to logout from service:", error);
@@ -268,7 +269,7 @@ export const BlitzWareAuthProvider: React.FC<BlitzWareAuthProviderParams> = ({
     setIsAuthenticated(false);
     setUser(null);
     setIsLoading(false);
-  }, [authParams.clientId]);
+  }, [authParams.clientId, authParams.authBaseUrl]);
 
   /**
    * Memoized context value for provider.

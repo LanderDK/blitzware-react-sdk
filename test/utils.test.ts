@@ -36,6 +36,8 @@ import {
   getState,
   clearSession,
   fetchUserInfo,
+  generateAuthUrl,
+  normalizeAuthBaseUrl,
 } from '../src/utils';
 
 describe('Utility Functions', () => {
@@ -215,6 +217,24 @@ describe('Utility Functions', () => {
         },
       });
       expect(user.email).toBe('alice@example.com');
+    });
+  });
+
+  describe('authBaseUrl', () => {
+    it('keeps the default auth URL when omitted', () => {
+      expect(normalizeAuthBaseUrl()).toBe('https://auth.blitzware.xyz/api/auth/');
+    });
+
+    it('uses custom managed auth base URL for authorize URLs', async () => {
+      const url = await generateAuthUrl({
+        clientId: 'test-client-id',
+        redirectUri: 'http://localhost:3000/callback',
+        responseType: 'token',
+        authBaseUrl: 'https://acme.auth.blitzware.xyz/api/auth',
+      }, 'test-state');
+
+      expect(url).toContain('https://acme.auth.blitzware.xyz/api/auth/authorize');
+      expect(url).not.toContain('/api/auth//authorize');
     });
   });
 
