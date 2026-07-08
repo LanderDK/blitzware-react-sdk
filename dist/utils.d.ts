@@ -28,6 +28,7 @@ declare const generateAuthUrl: ({ responseType, clientId, redirectUri, authBaseU
 declare const exchangeCodeForToken: (code: string, clientId: string, redirectUri: string, authBaseUrl?: string) => Promise<{
     access_token: string;
     refresh_token?: string;
+    id_token?: string;
 }>;
 /**
  * Fetches user information using the stored access token.
@@ -48,13 +49,14 @@ declare const fetchUserInfo: (authBaseUrl?: string) => Promise<BlitzWareAuthUser
 declare const tryRefreshToken: (clientId: string, clientSecret?: string, authBaseUrl?: string) => Promise<{
     access_token: string;
     refresh_token?: string;
+    id_token?: string;
 }>;
 /**
  * Stores an access or refresh token in localStorage.
  * @param type - The type of token ("access_token" or "refresh_token").
  * @param token - The token value.
  */
-declare const setToken: (type: "access_token" | "refresh_token", token: string) => void;
+declare const setToken: (type: "access_token" | "refresh_token" | "id_token", token: string) => void;
 /**
  * Checks if the stored access token is valid (not expired).
  * This is a quick local check based on JWT expiration.

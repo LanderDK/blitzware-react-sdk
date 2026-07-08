@@ -61,6 +61,7 @@ const parseApiError = (error, fallbackMessage, fallbackCode) => {
 const clearSession = () => {
     removeToken("access_token");
     removeToken("refresh_token");
+    removeToken("id_token");
     removeState();
     removeCodeVerifier();
 };
@@ -174,6 +175,9 @@ const tryRefreshToken = (clientId, clientSecret, authBaseUrl) => __awaiter(void 
         setToken("access_token", response.data.access_token);
         if (response.data.refresh_token) {
             setToken("refresh_token", response.data.refresh_token);
+        }
+        if (response.data.id_token) {
+            setToken("id_token", response.data.id_token);
         }
         return response.data;
     }
