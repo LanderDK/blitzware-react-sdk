@@ -14,7 +14,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "axios": "^1.7.7",
+    "axios": "^1.12.0",
     "buffer": "^6.0.3"
   },
   "peerDependencies": {
