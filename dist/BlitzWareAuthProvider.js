@@ -9,7 +9,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { jsx as _jsx } from "react/jsx-runtime";
 import React from "react";
-import { generateAuthUrl, hasAuthParams, isTokenValid, setToken, setState, getState, fetchUserInfo, exchangeCodeForToken, tryRefreshToken, generateSecureState, logoutFromService, clearSession, } from "./utils";
+import { generateAuthUrl, hasAuthParams, isTokenValid, setToken, setState, getState, fetchUserInfo, exchangeCodeForToken, generateSecureState, logoutFromService, clearSession, } from "./utils";
+import { createAccessTokenManager } from "./tokenManager";
 const BlitzWareAuthContext = React.createContext({});
 /**
  * Custom hook to access the BlitzWare authentication context.
@@ -56,6 +57,10 @@ export const useLogout = () => {
     const { logout } = useBlitzWareAuth();
     return logout;
 };
+export const useAccessToken = () => {
+    const { getAccessToken } = useBlitzWareAuth();
+    return getAccessToken;
+};
 /**
  * Custom hook to check if the user has the required role(s).
  * @param role - Single role or array of roles to check
@@ -90,6 +95,18 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
     const [user, setUser] = React.useState(null);
     const [isAuthenticated, setIsAuthenticated] = React.useState(isTokenValid());
     const [isLoading, setIsLoading] = React.useState(true);
+    const accessTokenManager = React.useMemo(() => createAccessTokenManager(authParams, {
+        onSessionExpired: () => {
+            setIsAuthenticated(false);
+            setUser(null);
+        },
+        onSessionRefreshed: () => setIsAuthenticated(true),
+    }), [authParams.authBaseUrl, authParams.clientId]);
+    const getAccessToken = React.useCallback((options) => accessTokenManager.getAccessToken(options), [accessTokenManager]);
+    React.useEffect(() => {
+        accessTokenManager.start();
+        return () => accessTokenManager.dispose();
+    }, [accessTokenManager]);
     /**
      * Effect to handle authentication callback and user state initialization.
      */
@@ -178,26 +195,20 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
                     });
                 }
                 else {
-                    tryRefreshToken(authParams.clientId, undefined, authParams.authBaseUrl)
-                        .then((tokenResponse) => {
-                        setToken("access_token", tokenResponse.access_token);
-                        if (tokenResponse.refresh_token) {
-                            setToken("refresh_token", tokenResponse.refresh_token);
-                        }
-                        if (tokenResponse.id_token) {
-                            setToken("id_token", tokenResponse.id_token);
-                        }
+                    getAccessToken({ minValiditySeconds: 0 })
+                        .then((token) => {
+                        if (!token)
+                            return null;
                         return fetchUserInfo(authParams.authBaseUrl);
                     })
                         .then((data) => {
+                        if (!data)
+                            return;
                         setUser(data);
                         setIsAuthenticated(true);
                     })
                         .catch((error) => {
                         console.error("Failed to refresh token or fetch user info:", error);
-                        clearSession();
-                        setIsAuthenticated(false);
-                        setUser(null);
                     })
                         .finally(() => {
                         setIsLoading(false);
@@ -206,7 +217,7 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
             }
         });
         handleAuthCallback();
-    }, [authParams.clientId, authParams.redirectUri, authParams.authBaseUrl]);
+    }, [authParams.clientId, authParams.redirectUri, authParams.authBaseUrl, getAccessToken]);
     /**
      * Initiates the login process by redirecting to the authorization URL.
      */
@@ -244,6 +255,7 @@ export const BlitzWareAuthProvider = ({ children, authParams, }) => {
         isLoading,
         login,
         logout,
-    }), [isAuthenticated, user, isLoading, login, logout]);
+        getAccessToken,
+    }), [isAuthenticated, user, isLoading, login, logout, getAccessToken]);
     return (_jsx(BlitzWareAuthContext.Provider, { value: value, children: children }));
 };

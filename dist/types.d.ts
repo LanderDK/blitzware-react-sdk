@@ -5,6 +5,11 @@ export interface BlitzWareAuthParams {
     redirectUri: string;
     authBaseUrl?: string;
 }
+export interface GetAccessTokenOptions {
+    minValiditySeconds?: number;
+    forceRefresh?: boolean;
+    rejectedToken?: string;
+}
 export interface BlitzWareAuthProviderParams {
     children: ReactNode;
     authParams: BlitzWareAuthParams;
@@ -46,6 +51,7 @@ export interface BlitzWareAuthContextType {
     isLoading: boolean;
     login: () => void;
     logout: () => Promise<void>;
+    getAccessToken: (options?: GetAccessTokenOptions) => Promise<string | null>;
 }
 export declare class BlitzWareAuthError extends Error {
     code: string;

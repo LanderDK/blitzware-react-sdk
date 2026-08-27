@@ -47,6 +47,11 @@ const parseApiError = (error, fallbackMessage, fallbackCode) => {
     // Check if it's an axios error with response data
     if ((_a = error === null || error === void 0 ? void 0 : error.response) === null || _a === void 0 ? void 0 : _a.data) {
         const responseData = error.response.data;
+        // OAuth token endpoints use the RFC 6749 error shape rather than the
+        // provider's general { code, message, details } API error shape.
+        if (typeof responseData.error === "string") {
+            return new BlitzWareAuthError(responseData.error_description || fallbackMessage, responseData.error, responseData);
+        }
         // Check if response matches our API error format
         if (responseData.code && responseData.message) {
             return new BlitzWareAuthError(responseData.message, responseData.code, responseData.details);
@@ -149,19 +154,13 @@ const fetchUserInfo = (authBaseUrl) => __awaiter(void 0, void 0, void 0, functio
     }
 });
 /**
- * Attempts to refresh the access token using the stored refresh token with validation.
- * Validates the refresh token before attempting to use it.
+ * Attempts to refresh the access token using the stored refresh token.
  * @param clientId - The client ID.
  * @param clientSecret - The client secret (optional for public clients).
  * @returns An object containing the new access token and optionally a new refresh token.
  * @throws BlitzWareAuthError if refresh token is invalid or refresh fails.
  */
 const tryRefreshToken = (clientId, clientSecret, authBaseUrl) => __awaiter(void 0, void 0, void 0, function* () {
-    // First validate the refresh token using introspection
-    const tokenValidation = yield validateRefreshToken(clientId, clientSecret, authBaseUrl);
-    if (!tokenValidation.active) {
-        throw new BlitzWareAuthError("Refresh token is not active or has expired", "refresh_token_inactive");
-    }
     const refreshToken = getToken("refresh_token");
     if (!refreshToken)
         throw new BlitzWareAuthError("No refresh token available", "no_refresh_token");
@@ -265,7 +264,7 @@ const parseExp = (exp) => {
  * This is a quick local check based on JWT expiration.
  * @returns True if the token appears valid locally, false otherwise.
  */
-const isTokenValid = () => {
+const isTokenValid = (minValiditySeconds = 0) => {
     const token = getToken("access_token");
     if (!token)
         return false;
@@ -276,7 +275,7 @@ const isTokenValid = () => {
     const expiration = parseExp(exp);
     if (!expiration)
         return false;
-    return expiration > new Date();
+    return expiration.getTime() > Date.now() + Math.max(0, minValiditySeconds) * 1000;
 };
 /**
  * Validates a refresh token by introspecting it with the authorization server.
@@ -442,4 +441,4 @@ const revokeToken = (token, tokenTypeHint, clientId, authBaseUrl) => __awaiter(v
         throw parseApiError(error, "Failed to revoke token", "revoke_failed");
     }
 });
-export { clearSession, hasAuthParams, normalizeAuthBaseUrl, generateAuthUrl, exchangeCodeForToken, fetchUserInfo, tryRefreshToken, setToken, isTokenValid, setState, getState, generateSecureState, logoutFromService, };
+export { clearSession, hasAuthParams, normalizeAuthBaseUrl, generateAuthUrl, exchangeCodeForToken, fetchUserInfo, tryRefreshToken, setToken, getToken, isTokenValid, setState, getState, generateSecureState, logoutFromService, };

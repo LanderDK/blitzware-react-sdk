@@ -1,5 +1,5 @@
 import React from "react";
-import { BlitzWareAuthProviderParams, BlitzWareAuthUser } from "./types";
+import { BlitzWareAuthProviderParams, BlitzWareAuthUser, GetAccessTokenOptions } from "./types";
 /**
  * Custom hook to get the authenticated user.
  * @returns The current authenticated user or null.
@@ -25,6 +25,7 @@ export declare const useLogin: () => () => void;
  * @returns The logout function.
  */
 export declare const useLogout: () => () => Promise<void>;
+export declare const useAccessToken: () => (options?: GetAccessTokenOptions) => Promise<string | null>;
 /**
  * Custom hook to check if the user has the required role(s).
  * @param role - Single role or array of roles to check

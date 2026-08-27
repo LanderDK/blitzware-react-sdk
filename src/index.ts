@@ -2,6 +2,7 @@ export {
   BlitzWareAuthProvider,
   useLogin,
   useLogout,
+  useAccessToken,
   useAuthUser,
   useIsAuthenticated,
   useAuthLoading,
@@ -10,4 +11,4 @@ export {
 
 export { ProtectedRoute } from "./ProtectedRoute";
 
-export type { BlitzWareAuthUser } from "./types";
+export type { BlitzWareAuthUser, GetAccessTokenOptions } from "./types";
